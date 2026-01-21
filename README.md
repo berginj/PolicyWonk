@@ -112,7 +112,16 @@ curl -X POST https://func-policywonk-prod.azurewebsites.net/api/ingest/url \
 
 ## Cost Estimate
 
-For 100 policies with daily monitoring (~10% change rate): **$160-235/month**
+**Optimized Configuration (Default):** **$30-50/month** for 100 policies
+- FREE tier AI Search ($0 vs $75)
+- Embedding cache enabled (90% cache hits)
+- LLM analysis for MAJOR changes only
+- Weekly monitoring
+
+**Balanced Configuration:** $80-120/month for 200 policies
+- Daily monitoring, MODERATE+ LLM analysis
+
+See [COST_OPTIMIZATION.md](COST_OPTIMIZATION.md) for details and further savings strategies.
 
 ## License
 

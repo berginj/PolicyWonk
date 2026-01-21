@@ -9,8 +9,9 @@ export class ChangeExplainer {
     summaryJson: DiffSummary,
     changeType: ChangeType
   ): Promise<LLMExplanation | undefined> {
-    // Only generate LLM explanation for MODERATE and MAJOR changes
-    if (changeType !== 'MODERATE' && changeType !== 'MAJOR') {
+    // Only generate LLM explanation for MAJOR changes (cost optimization)
+    // MODERATE changes get structured diff summary only
+    if (changeType !== 'MAJOR') {
       return undefined;
     }
 

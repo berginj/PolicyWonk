@@ -1,4 +1,4 @@
-// Azure OpenAI service
+// Azure OpenAI service with caching for cost optimization
 
 import { OpenAIClient, AzureKeyCredential } from '@azure/openai';
 import { DefaultAzureCredential } from '@azure/identity';
@@ -6,6 +6,7 @@ import { SecretClient } from '@azure/keyvault-secrets';
 import { getConfig } from '../utils/config';
 import { logger } from '../utils/logger';
 import { ExternalServiceError } from '../utils/errors';
+import { cacheService } from './cacheService';
 
 class OpenAIService {
   private client: OpenAIClient | null = null;
@@ -37,6 +38,14 @@ class OpenAIService {
   async generateEmbedding(text: string): Promise<number[]> {
     await this.initialize();
 
+    // Check cache first (reduces OpenAI costs)
+    const cacheKey = cacheService.generateKey('embedding', text);
+    const cached = cacheService.get<number[]>(cacheKey);
+    if (cached) {
+      logger.debug('Embedding cache hit', { textLength: text.length });
+      return cached;
+    }
+
     try {
       const config = getConfig();
       const response = await this.client!.getEmbeddings(
@@ -44,7 +53,13 @@ class OpenAIService {
         [text]
       );
 
-      return response.data[0].embedding;
+      const embedding = response.data[0].embedding;
+
+      // Cache for 7 days
+      cacheService.set(cacheKey, embedding);
+      logger.debug('Embedding generated and cached', { textLength: text.length });
+
+      return embedding;
     } catch (error) {
       logger.error('Failed to generate embedding', error);
       throw new ExternalServiceError('OpenAI', error as Error);
@@ -54,18 +69,58 @@ class OpenAIService {
   async generateEmbeddings(texts: string[]): Promise<number[][]> {
     await this.initialize();
 
-    try {
-      const config = getConfig();
-      const response = await this.client!.getEmbeddings(
-        config.openai.embeddingDeployment,
-        texts
-      );
+    // Check cache for each text
+    const results: number[][] = [];
+    const uncachedTexts: string[] = [];
+    const uncachedIndices: number[] = [];
 
-      return response.data.map((d) => d.embedding);
-    } catch (error) {
-      logger.error('Failed to generate embeddings', error);
-      throw new ExternalServiceError('OpenAI', error as Error);
+    for (let i = 0; i < texts.length; i++) {
+      const text = texts[i];
+      const cacheKey = cacheService.generateKey('embedding', text);
+      const cached = cacheService.get<number[]>(cacheKey);
+
+      if (cached) {
+        results[i] = cached;
+      } else {
+        uncachedTexts.push(text);
+        uncachedIndices.push(i);
+      }
     }
+
+    // Only call OpenAI for uncached texts
+    if (uncachedTexts.length > 0) {
+      try {
+        const config = getConfig();
+        const response = await this.client!.getEmbeddings(
+          config.openai.embeddingDeployment,
+          uncachedTexts
+        );
+
+        // Cache and store results
+        for (let i = 0; i < uncachedTexts.length; i++) {
+          const embedding = response.data[i].embedding;
+          const originalIndex = uncachedIndices[i];
+          results[originalIndex] = embedding;
+
+          // Cache it
+          const cacheKey = cacheService.generateKey('embedding', uncachedTexts[i]);
+          cacheService.set(cacheKey, embedding);
+        }
+
+        logger.debug('Embeddings generated', {
+          total: texts.length,
+          cached: texts.length - uncachedTexts.length,
+          generated: uncachedTexts.length,
+        });
+      } catch (error) {
+        logger.error('Failed to generate embeddings', error);
+        throw new ExternalServiceError('OpenAI', error as Error);
+      }
+    } else {
+      logger.debug('All embeddings served from cache', { count: texts.length });
+    }
+
+    return results;
   }
 
   async chat(messages: Array<{ role: string; content: string }>): Promise<string> {

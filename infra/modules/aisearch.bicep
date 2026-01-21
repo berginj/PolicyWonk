@@ -12,7 +12,7 @@ resource searchService 'Microsoft.Search/searchServices@2023-11-01' = {
   location: location
   tags: tags
   sku: {
-    name: 'basic'
+    name: 'free'  // FREE tier: 50MB storage, 3 indexes, 3 indexers - perfect for <200 policies
   }
   properties: {
     replicaCount: 1
