@@ -1,0 +1,40 @@
+name: Deploy Infrastructure
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'infra/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy Bicep
+        uses: azure/arm-deploy@v1
+        with:
+          scope: subscription
+          subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          region: eastus
+          template: ./infra/main.bicep
+          parameters: ./infra/parameters.prod.json
+          deploymentName: policywonk-${{ github.run_number }}
+
+      - name: Get deployment outputs
+        id: outputs
+        run: |
+          outputs=$(az deployment sub show \
+            --name policywonk-${{ github.run_number }} \
+            --query properties.outputs \
+            -o json)
+          echo "outputs=$outputs" >> $GITHUB_OUTPUT

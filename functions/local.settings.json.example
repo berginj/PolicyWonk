@@ -1,0 +1,22 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "KEY_VAULT_NAME": "your-keyvault-name",
+    "COSMOS_DB_ENDPOINT": "https://your-cosmos.documents.azure.com:443/",
+    "COSMOS_DB_DATABASE": "policywonk",
+    "STORAGE_ACCOUNT_NAME": "yourstorageaccount",
+    "SEARCH_SERVICE_ENDPOINT": "https://your-search.search.windows.net",
+    "SEARCH_INDEX_NAME": "policywonk-documents",
+    "DOCUMENT_INTELLIGENCE_ENDPOINT": "https://your-di.cognitiveservices.azure.com/",
+    "OPENAI_ENDPOINT": "https://your-openai.openai.azure.com/",
+    "OPENAI_EMBEDDING_DEPLOYMENT": "text-embedding-3-large",
+    "OPENAI_CHAT_DEPLOYMENT": "gpt-4o",
+    "QUEUE_NAME_PROCESSING": "document-processing",
+    "QUEUE_NAME_DIFF": "diff-computation",
+    "QUEUE_NAME_ALERT": "alert-evaluation",
+    "MONITORING_SCHEDULE": "0 0 6 * * *",
+    "MONITORING_TIMEZONE": "America/New_York"
+  }
+}

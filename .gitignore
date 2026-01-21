@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+*.lcov
+
+# Production
+dist/
+build/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+local.settings.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Azure Functions
+bin/
+obj/
+*.user
+__blobstorage__
+__queuestorage__
+__azurite_db*
+
+# Temporary files
+*.tmp
+tmp/
+temp/
+.claude/

@@ -1,0 +1,48 @@
+// API client for PolicyWonk backend
+
+import axios, { AxiosInstance } from 'axios';
+
+class ApiClient {
+  private client: AxiosInstance;
+
+  constructor() {
+    this.client = axios.create({
+      baseURL: '/api',
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  }
+
+  async getDiff(diffId: string) {
+    const response = await this.client.get(`/diffs/${diffId}`);
+    return response.data;
+  }
+
+  async getPolicyDiffs(policyId: string) {
+    const response = await this.client.get(`/policies/${policyId}/diffs`);
+    return response.data;
+  }
+
+  async getPolicyVersions(policyId: string) {
+    const response = await this.client.get(`/policies/${policyId}/versions`);
+    return response.data;
+  }
+
+  async ingestUrl(url: string, docType: 'policy' | 'contract', metadata?: any) {
+    const response = await this.client.post('/ingest/url', {
+      url,
+      docType,
+      metadata,
+    });
+    return response.data;
+  }
+
+  async searchDocuments(query: any) {
+    const response = await this.client.get('/documents', { params: query });
+    return response.data;
+  }
+}
+
+export const api = new ApiClient();
