@@ -1,6 +1,6 @@
 // LLM-based change explanation
 
-import { DiffSummary, LLMExplanation, EvidenceSnippet, ChangeType } from '../types/diff';
+import { DiffSummary, LLMExplanation, ChangeType } from '../types/diff';
 import { openaiService } from '../services/openaiService';
 import { logger } from '../utils/logger';
 

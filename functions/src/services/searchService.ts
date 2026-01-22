@@ -2,7 +2,6 @@
 
 import {
   SearchClient,
-  SearchIndexClient,
   AzureKeyCredential,
 } from '@azure/search-documents';
 import { DefaultAzureCredential } from '@azure/identity';
@@ -31,7 +30,6 @@ export interface SearchDocument {
 
 class SearchService {
   private searchClient: SearchClient<SearchDocument> | null = null;
-  private indexClient: SearchIndexClient | null = null;
 
   async initialize(): Promise<void> {
     if (this.searchClient) return;
@@ -52,8 +50,6 @@ class SearchService {
         config.search.indexName,
         searchCredential
       );
-
-      this.indexClient = new SearchIndexClient(config.search.endpoint, searchCredential);
 
       logger.info('AI Search client initialized');
     } catch (error) {
@@ -126,7 +122,7 @@ class SearchService {
     await this.initialize();
 
     try {
-      await this.searchClient!.deleteDocuments([{ id: documentId }]);
+      await this.searchClient!.deleteDocuments([{ id: documentId } as any]);
       logger.debug(`Document deleted from index: ${documentId}`);
     } catch (error) {
       logger.error('Failed to delete document from index', error);

@@ -36,7 +36,7 @@
     "string-similarity": "^4.0.4",
     "uuid": "^9.0.1",
     "crypto": "^1.0.1",
-    "date-fns": "^3.2.0",
+    "date-fns": "^2.30.0",
     "date-fns-tz": "^2.0.0"
   },
   "devDependencies": {

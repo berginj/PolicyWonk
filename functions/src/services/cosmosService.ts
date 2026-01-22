@@ -44,10 +44,10 @@ class CosmosService {
     return this.containers.get(containerName)!;
   }
 
-  async createDocument<T>(containerName: string, document: T): Promise<T> {
+  async createDocument<T extends Record<string, any>>(containerName: string, document: T): Promise<T> {
     try {
       const container = await this.getContainer(containerName);
-      const { resource } = await container.items.create(document);
+      const { resource } = await container.items.create(document as any);
       return resource as T;
     } catch (error) {
       logger.error(`Failed to create document in ${containerName}`, error);
@@ -55,15 +55,15 @@ class CosmosService {
     }
   }
 
-  async getDocument<T>(
+  async getDocument<T extends Record<string, any>>(
     containerName: string,
     id: string,
     partitionKey: string
   ): Promise<T | null> {
     try {
       const container = await this.getContainer(containerName);
-      const { resource } = await container.item(id, partitionKey).read<T>();
-      return resource || null;
+      const { resource } = await container.item(id, partitionKey).read();
+      return (resource as T) || null;
     } catch (error: any) {
       if (error.code === 404) {
         return null;
@@ -73,7 +73,7 @@ class CosmosService {
     }
   }
 
-  async updateDocument<T>(
+  async updateDocument<T extends Record<string, any>>(
     containerName: string,
     id: string,
     partitionKey: string,
@@ -81,10 +81,10 @@ class CosmosService {
   ): Promise<T> {
     try {
       const container = await this.getContainer(containerName);
-      const { resource: existing } = await container.item(id, partitionKey).read<T>();
+      const { resource: existing } = await container.item(id, partitionKey).read();
 
       const updated = { ...existing, ...updates, updatedAt: new Date().toISOString() };
-      const { resource } = await container.item(id, partitionKey).replace(updated);
+      const { resource } = await container.item(id, partitionKey).replace(updated as any);
 
       return resource as T;
     } catch (error) {

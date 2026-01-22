@@ -1,7 +1,6 @@
 // Queue trigger for document processing
 
 import { app, InvocationContext } from '@azure/functions';
-import { v4 as uuidv4 } from 'uuid';
 import { cosmosService } from '../../services/cosmosService';
 import { blobService } from '../../services/blobService';
 import { queueService } from '../../services/queueService';
@@ -93,13 +92,13 @@ export async function processDocument(
 
     // Generate embeddings for chunks
     const chunkSize = 512;
-    const chunks = this.chunkText(normalizedText, chunkSize);
+    const chunks = chunkText(normalizedText, chunkSize);
     const embeddings = await openaiService.generateEmbeddings(
       chunks.map((c) => c.text)
     );
 
     // Generate tags using LLM
-    const tags = await this.generateTags(normalizedText.substring(0, 2000));
+    const tags = await generateTags(normalizedText.substring(0, 2000));
 
     // Index in search
     await searchService.indexDocument({
@@ -111,7 +110,7 @@ export async function processDocument(
       ))!.title,
       docType: job.docType,
       tags: tags.map((t) => t.tag),
-      frameworks: tags.filter((t) => this.isFramework(t.tag)).map((t) => t.tag),
+      frameworks: tags.filter((t) => isFramework(t.tag)).map((t) => t.tag),
       contentVector: embeddings[0] || [],
       chunks: chunks.map((c, idx) => ({
         chunkId: `${job.documentId}_chunk_${idx}`,
@@ -129,14 +128,14 @@ export async function processDocument(
       job.documentId,
       {
         tags,
-        frameworks: tags.filter((t) => this.isFramework(t.tag)).map((t) => t.tag),
+        frameworks: tags.filter((t) => isFramework(t.tag)).map((t) => t.tag),
         status: 'completed',
       }
     );
 
     // If this is a policy update, create version and diff
     if (job.isUpdate && job.versionId) {
-      await this.handlePolicyUpdate(job, normalizedText, sections);
+      await handlePolicyUpdate(job, normalizedText, sections);
     }
 
     logger.info('Document processing completed', { documentId: job.documentId });
@@ -219,7 +218,7 @@ function isFramework(tag: string): boolean {
 
 async function handlePolicyUpdate(
   job: ProcessingJob,
-  normalizedText: string,
+  _normalizedText: string,
   sections: any[]
 ): Promise<void> {
   const config = getConfig();

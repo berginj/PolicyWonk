@@ -12,7 +12,7 @@ import { ProcessingJob } from '../../types/job';
 import { requireAuth, requireAnyRole, Role } from '../../utils/auth';
 import { validateRequired, validateUrl, validateEnum } from '../../utils/validation';
 import { isAppError } from '../../utils/errors';
-import { logger, createLogger } from '../../utils/logger';
+import { createLogger } from '../../utils/logger';
 import { getConfig } from '../../utils/config';
 
 interface IngestUrlRequest {

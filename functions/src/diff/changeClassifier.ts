@@ -65,7 +65,7 @@ export class ChangeClassifier {
     oldSections: Section[],
     newSections: Section[]
   ): Promise<number> {
-    const { stats, modifiedSections } = summaryJson;
+    const { stats } = summaryJson;
 
     // Component 1: Structural changes (40%)
     const structuralScore =

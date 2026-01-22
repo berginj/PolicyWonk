@@ -19,8 +19,8 @@ export class DiffComputer {
     toVersionId: string,
     oldSections: Section[],
     newSections: Section[],
-    oldText: string,
-    newText: string
+    _oldText: string,
+    _newText: string
   ): Promise<Omit<DiffRecord, 'diffId' | 'computedAt' | 'changeScore' | 'changeType' | 'llmExplanation'>> {
     logger.info('Computing diff', { policyId, fromVersionId, toVersionId });
 
@@ -84,8 +84,8 @@ export class DiffComputer {
       stats,
     };
 
-    // Generate full text diff
-    const textDiff = this.generateUnifiedDiff(oldText, newText);
+    // Generate full text diff (not currently used in output)
+    // this.generateUnifiedDiff(oldText, newText);
 
     logger.info('Diff computation complete', {
       policyId,
@@ -144,11 +144,6 @@ export class DiffComputer {
       added,
       removed,
     };
-  }
-
-  private generateUnifiedDiff(oldText: string, newText: string): string {
-    const patch = diff.createPatch('document', oldText, newText, 'Version A', 'Version B');
-    return patch;
   }
 
   private getPreview(text: string, maxLength = 150): string {

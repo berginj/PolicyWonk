@@ -1,6 +1,6 @@
 // HTTP fetch service with retries and conditional requests
 
-import axios, { AxiosInstance, AxiosResponse } from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import { logger } from '../utils/logger';
 
 export interface FetchResult {

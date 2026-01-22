@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { format } from 'date-fns';
-import ReactDiffViewer from 'react-diff-viewer';
+import ReactDiffViewer from 'react-diff-viewer-continued';
 import { DiffRecord, ModifiedSection } from '../../types/diff';
 import { api } from '../../services/api';
 import './DiffViewer.css';

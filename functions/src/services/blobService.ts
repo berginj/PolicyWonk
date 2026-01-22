@@ -1,6 +1,6 @@
 // Blob Storage service
 
-import { BlobServiceClient, ContainerClient, generateBlobSASQueryParameters, BlobSASPermissions } from '@azure/storage-blob';
+import { BlobServiceClient, ContainerClient, BlobSASPermissions } from '@azure/storage-blob';
 import { DefaultAzureCredential } from '@azure/identity';
 import { getConfig } from '../utils/config';
 import { logger } from '../utils/logger';

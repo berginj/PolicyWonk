@@ -14,7 +14,7 @@ import { createLogger } from '../../utils/logger';
 import { getConfig } from '../../utils/config';
 
 export async function monitorPolicies(
-  myTimer: Timer,
+  _myTimer: Timer,
   context: InvocationContext
 ): Promise<void> {
   const logger = createLogger({
@@ -25,7 +25,6 @@ export async function monitorPolicies(
   try {
     logger.info('Policy monitoring started');
 
-    const config = getConfig();
     const now = new Date().toISOString();
 
     // Query policies due for monitoring
