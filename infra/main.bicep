@@ -96,17 +96,18 @@ module documentintelligence './modules/documentintelligence.bicep' = {
   }
 }
 
-// Azure OpenAI
-module openai './modules/openai.bicep' = {
-  scope: rg
-  name: 'openai-deployment'
-  params: {
-    location: location
-    environmentName: environmentName
-    resourcePrefix: resourcePrefix
-    tags: tags
-  }
-}
+// Azure OpenAI - Commented out due to quota limitations in West US 2
+// Use existing OpenAI resource: aitest2914493985 in East US 2
+// module openai './modules/openai.bicep' = {
+//   scope: rg
+//   name: 'openai-deployment'
+//   params: {
+//     location: location
+//     environmentName: environmentName
+//     resourcePrefix: resourcePrefix
+//     tags: tags
+//   }
+// }
 
 // Communication Services
 module communicationservices './modules/communicationservices.bicep' = {
@@ -156,7 +157,7 @@ module secrets './modules/secrets.bicep' = {
     storageAccountConnectionString: storage.outputs.connectionString
     searchServiceKey: aisearch.outputs.adminKey
     documentIntelligenceKey: documentintelligence.outputs.key
-    openaiKey: openai.outputs.key
+    // openaiKey: openai.outputs.key  // Commented out - using existing OpenAI resource
     communicationServicesConnectionString: communicationservices.outputs.connectionString
   }
   dependsOn: [
@@ -187,5 +188,5 @@ output staticWebAppDefaultHostname string = staticwebapp.outputs.defaultHostname
 output keyVaultName string = keyvault.outputs.keyVaultName
 output searchServiceName string = aisearch.outputs.searchServiceName
 output documentIntelligenceEndpoint string = documentintelligence.outputs.endpoint
-output openaiEndpoint string = openai.outputs.endpoint
+// output openaiEndpoint string = openai.outputs.endpoint  // Commented out - using existing resource
 output appInsightsInstrumentationKey string = monitoring.outputs.appInsightsInstrumentationKey
