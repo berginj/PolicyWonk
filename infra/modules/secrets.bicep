@@ -10,7 +10,7 @@ param searchServiceKey string
 @secure()
 param documentIntelligenceKey string
 @secure()
-param openaiKey string
+param openaiKey string = ''  // Optional - using existing OpenAI resource
 @secure()
 param communicationServicesConnectionString string
 
@@ -50,7 +50,7 @@ resource documentIntelligenceSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-0
   }
 }
 
-resource openaiSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+resource openaiSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (openaiKey != '') {
   parent: keyVault
   name: 'OpenAIKey'
   properties: {
@@ -71,6 +71,5 @@ output secretNames array = [
   storageSecret.name
   searchSecret.name
   documentIntelligenceSecret.name
-  openaiSecret.name
   communicationServicesSecret.name
 ]

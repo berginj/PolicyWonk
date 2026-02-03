@@ -157,7 +157,7 @@ module secrets './modules/secrets.bicep' = {
     storageAccountConnectionString: storage.outputs.connectionString
     searchServiceKey: aisearch.outputs.adminKey
     documentIntelligenceKey: documentintelligence.outputs.key
-    // openaiKey: openai.outputs.key  // Commented out - using existing OpenAI resource
+    openaiKey: ''  // Using existing OpenAI resource - configure manually in Key Vault
     communicationServicesConnectionString: communicationservices.outputs.connectionString
   }
   dependsOn: [
