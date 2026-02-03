@@ -25,7 +25,7 @@ jobs:
         with:
           scope: subscription
           subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          region: eastus
+          region: westus2
           template: ./infra/main.bicep
           parameters: ./infra/parameters.prod.json
           deploymentName: policywonk-${{ github.run_number }}
