@@ -8,7 +8,7 @@ param storageAccountConnectionString string
 @secure()
 param searchServiceKey string
 @secure()
-param documentIntelligenceKey string
+param documentIntelligenceKey string = ''  // Optional - may not be deployed yet
 @secure()
 param openaiKey string = ''  // Optional - using existing OpenAI resource
 @secure()
@@ -42,7 +42,7 @@ resource searchSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   }
 }
 
-resource documentIntelligenceSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+resource documentIntelligenceSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (documentIntelligenceKey != '') {
   parent: keyVault
   name: 'DocumentIntelligenceKey'
   properties: {

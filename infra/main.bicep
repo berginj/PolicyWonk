@@ -84,17 +84,18 @@ module aisearch './modules/aisearch.bicep' = {
   }
 }
 
-// Document Intelligence
-module documentintelligence './modules/documentintelligence.bicep' = {
-  scope: rg
-  name: 'documentintelligence-deployment'
-  params: {
-    location: location
-    environmentName: environmentName
-    resourcePrefix: resourcePrefix
-    tags: tags
-  }
-}
+// Document Intelligence - Temporarily commented out due to soft-delete conflicts
+// Will be added back in a follow-up deployment after purge completes
+// module documentintelligence './modules/documentintelligence.bicep' = {
+//   scope: rg
+//   name: 'documentintelligence-deployment'
+//   params: {
+//     location: location
+//     environmentName: environmentName
+//     resourcePrefix: resourcePrefix
+//     tags: tags
+//   }
+// }
 
 // Azure OpenAI - Commented out due to quota limitations in West US 2
 // Use existing OpenAI resource: aitest2914493985 in East US 2
@@ -156,7 +157,7 @@ module secrets './modules/secrets.bicep' = {
     cosmosDbConnectionString: cosmosdb.outputs.connectionString
     storageAccountConnectionString: storage.outputs.connectionString
     searchServiceKey: aisearch.outputs.adminKey
-    documentIntelligenceKey: documentintelligence.outputs.key
+    documentIntelligenceKey: ''  // Temporarily empty - Document Intelligence not deployed yet
     openaiKey: ''  // Using existing OpenAI resource - configure manually in Key Vault
     communicationServicesConnectionString: communicationservices.outputs.connectionString
   }
@@ -187,6 +188,6 @@ output staticWebAppName string = staticwebapp.outputs.staticWebAppName
 output staticWebAppDefaultHostname string = staticwebapp.outputs.defaultHostname
 output keyVaultName string = keyvault.outputs.keyVaultName
 output searchServiceName string = aisearch.outputs.searchServiceName
-output documentIntelligenceEndpoint string = documentintelligence.outputs.endpoint
+// output documentIntelligenceEndpoint string = documentintelligence.outputs.endpoint  // Commented out - not deployed yet
 // output openaiEndpoint string = openai.outputs.endpoint  // Commented out - using existing resource
 output appInsightsInstrumentationKey string = monitoring.outputs.appInsightsInstrumentationKey
