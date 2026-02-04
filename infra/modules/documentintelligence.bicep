@@ -5,7 +5,7 @@ param environmentName string
 param resourcePrefix string
 param tags object
 
-var documentIntelligenceName = 'di-${resourcePrefix}-${environmentName}'
+var documentIntelligenceName = 'di-${resourcePrefix}-${environmentName}-v2'
 
 resource documentIntelligence 'Microsoft.CognitiveServices/accounts@2023-10-01-preview' = {
   name: documentIntelligenceName
