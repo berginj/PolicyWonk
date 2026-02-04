@@ -5,7 +5,8 @@ param environmentName string
 param resourcePrefix string
 param tags object
 
-var documentIntelligenceName = 'di-${resourcePrefix}-${environmentName}-v2'
+// Use uniqueString to generate a suffix that's consistent but avoids soft-delete conflicts
+var documentIntelligenceName = 'di-${resourcePrefix}-${environmentName}-${uniqueString(resourceGroup().id)}'
 
 resource documentIntelligence 'Microsoft.CognitiveServices/accounts@2023-10-01-preview' = {
   name: documentIntelligenceName
