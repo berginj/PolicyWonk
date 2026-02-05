@@ -25,7 +25,7 @@ jobs:
         with:
           scope: subscription
           subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          region: westus2
+          region: centralus
           template: ./infra/main.bicep
           parameters: ./infra/parameters.prod.json resourcePrefix=pwonk environmentName=prod location=westus2
           deploymentName: pwonk-${{ github.run_number }}

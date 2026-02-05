@@ -6,10 +6,10 @@
       "value": "prod"
     },
     "location": {
-      "value": "eastus"
+      "value": "centralus"
     },
     "resourcePrefix": {
-      "value": "policywonk"
+      "value": "pwonk"
     },
     "tags": {
       "value": {
