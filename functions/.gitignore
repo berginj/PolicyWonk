@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.js
+*.js.map
+*.d.ts
+*.d.ts.map
+
+# Keep specific config files
+!jest.config.js
+
+# Deployment files
+deploy.zip
+deploy-with-modules.zip
+deploy-verify/
+
+# Environment variables
+.env
+local.settings.json
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Azure Functions
+bin/
+obj/
+.azurefunctions/
+__blobstorage__/
+__queuestorage__/
+__azurite_db*__.json

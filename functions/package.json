@@ -2,7 +2,7 @@
   "name": "policywonk-functions",
   "version": "1.0.0",
   "description": "PolicyWonk Azure Functions Backend",
-  "main": "dist/src/functions/**/*.js",
+  "main": "dist/functions/**/*.js",
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch",
@@ -40,7 +40,7 @@
     "date-fns-tz": "^2.0.0"
   },
   "devDependencies": {
-    "@types/node": "^20.x",
+    "@types/node": "^22.x",
     "@types/jest": "^29.5.11",
     "@types/diff": "^5.0.9",
     "@types/uuid": "^9.0.7",
@@ -56,6 +56,6 @@
     "rimraf": "^5.0.5"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   }
 }
