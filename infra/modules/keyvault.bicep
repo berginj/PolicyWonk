@@ -6,7 +6,8 @@ param resourcePrefix string
 param tags object
 
 // Key Vault name must be globally unique and <= 24 chars
-var keyVaultName = 'kv-${take(replace(resourcePrefix, '-', ''), 10)}-${environmentName}'
+// Using uniqueString to avoid soft-delete conflicts
+var keyVaultName = 'kv-${take(replace(resourcePrefix, '-', ''), 5)}-${take(uniqueString(subscription().subscriptionId), 6)}'
 
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   name: keyVaultName
@@ -21,7 +22,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
     enableRbacAuthorization: true
     enableSoftDelete: true
     softDeleteRetentionInDays: 7
-    enablePurgeProtection: false
+    enablePurgeProtection: true
     publicNetworkAccess: 'Enabled'
     networkAcls: {
       defaultAction: 'Allow'
