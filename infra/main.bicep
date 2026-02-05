@@ -122,31 +122,33 @@ module communicationservices './modules/communicationservices.bicep' = {
   }
 }
 
-// Function App
-module functionapp './modules/functionapp.bicep' = {
-  scope: rg
-  name: 'functionapp-deployment'
-  params: {
-    location: location
-    environmentName: environmentName
-    resourcePrefix: resourcePrefix
-    tags: tags
-    storageAccountName: storage.outputs.storageAccountName
-    appInsightsConnectionString: monitoring.outputs.appInsightsConnectionString
-    appInsightsInstrumentationKey: monitoring.outputs.appInsightsInstrumentationKey
-    keyVaultName: keyvault.outputs.keyVaultName
-  }
-}
+// Function App - COMMENTED OUT due to App Service Plan quota limitations
+// Basic tier quota = 0, Premium V3 quota = 0
+// Need to request specific App Service Plan quota increase
+// module functionapp './modules/functionapp.bicep' = {
+//   scope: rg
+//   name: 'functionapp-deployment'
+//   params: {
+//     location: location
+//     environmentName: environmentName
+//     resourcePrefix: resourcePrefix
+//     tags: tags
+//     storageAccountName: storage.outputs.storageAccountName
+//     appInsightsConnectionString: monitoring.outputs.appInsightsConnectionString
+//     appInsightsInstrumentationKey: monitoring.outputs.appInsightsInstrumentationKey
+//     keyVaultName: keyvault.outputs.keyVaultName
+//   }
+// }
 
 // Grant Function App managed identity access to Key Vault
-module keyvaultAccess './modules/keyvault-access.bicep' = {
-  scope: rg
-  name: 'keyvault-access-deployment'
-  params: {
-    keyVaultName: keyvault.outputs.keyVaultName
-    functionAppPrincipalId: functionapp.outputs.functionAppPrincipalId
-  }
-}
+// module keyvaultAccess './modules/keyvault-access.bicep' = {
+//   scope: rg
+//   name: 'keyvault-access-deployment'
+//   params: {
+//     keyVaultName: keyvault.outputs.keyVaultName
+//     functionAppPrincipalId: functionapp.outputs.functionAppPrincipalId
+//   }
+// }
 
 // Store secrets in Key Vault
 module secrets './modules/secrets.bicep' = {
@@ -161,9 +163,9 @@ module secrets './modules/secrets.bicep' = {
     openaiKey: ''  // Using existing OpenAI resource - configure manually in Key Vault
     communicationServicesConnectionString: communicationservices.outputs.connectionString
   }
-  dependsOn: [
-    keyvaultAccess
-  ]
+  // dependsOn: [
+  //   keyvaultAccess
+  // ]
 }
 
 // Static Web App
@@ -175,7 +177,7 @@ module staticwebapp './modules/staticwebapp.bicep' = {
     environmentName: environmentName
     resourcePrefix: resourcePrefix
     tags: tags
-    functionAppName: functionapp.outputs.functionAppName
+    functionAppName: ''  // Function App not deployed yet
   }
 }
 
@@ -183,7 +185,7 @@ module staticwebapp './modules/staticwebapp.bicep' = {
 output resourceGroupName string = rg.name
 output storageAccountName string = storage.outputs.storageAccountName
 output cosmosDbAccountName string = cosmosdb.outputs.accountName
-output functionAppName string = functionapp.outputs.functionAppName
+// output functionAppName string = functionapp.outputs.functionAppName  // Commented out - not deployed yet
 output staticWebAppName string = staticwebapp.outputs.staticWebAppName
 output staticWebAppDefaultHostname string = staticwebapp.outputs.defaultHostname
 output keyVaultName string = keyvault.outputs.keyVaultName
