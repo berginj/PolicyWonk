@@ -12,14 +12,14 @@ param keyVaultName string
 var functionAppName = 'func-${resourcePrefix}-${environmentName}'
 var appServicePlanName = 'asp-${resourcePrefix}-${environmentName}'
 
-// App Service Plan (Consumption)
+// App Service Plan (Basic - avoids Consumption quota limits)
 resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
   name: appServicePlanName
   location: location
   tags: tags
   sku: {
-    name: 'Y1'
-    tier: 'Dynamic'
+    name: 'B1'
+    tier: 'Basic'
   }
   properties: {
     reserved: true
@@ -101,17 +101,18 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
 }
 
 // Grant Function App access to Storage Account (Blob Data Contributor)
-var storageBlobDataContributorRoleId = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
+// TEMPORARILY COMMENTED OUT - Configure manually after deployment
+// var storageBlobDataContributorRoleId = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
 
-resource storageBlobRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(storageAccount.id, functionApp.id, storageBlobDataContributorRoleId)
-  scope: storageAccount
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataContributorRoleId)
-    principalId: functionApp.identity.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
+// resource storageBlobRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+//   name: guid(storageAccount.id, functionApp.id, storageBlobDataContributorRoleId)
+//   scope: storageAccount
+//   properties: {
+//     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', storageBlobDataContributorRoleId)
+//     principalId: functionApp.identity.principalId
+//     principalType: 'ServicePrincipal'
+//   }
+// }
 
 output functionAppName string = functionApp.name
 output functionAppId string = functionApp.id
