@@ -168,26 +168,27 @@ module secrets './modules/secrets.bicep' = {
   // ]
 }
 
-// Static Web App
-module staticwebapp './modules/staticwebapp.bicep' = {
-  scope: rg
-  name: 'staticwebapp-deployment'
-  params: {
-    location: location
-    environmentName: environmentName
-    resourcePrefix: resourcePrefix
-    tags: tags
-    functionAppName: ''  // Function App not deployed yet
-  }
-}
+// Static Web App - Already deployed separately via GitHub Actions
+// Commenting out to avoid conflicts with existing deployment
+// module staticwebapp './modules/staticwebapp.bicep' = {
+//   scope: rg
+//   name: 'staticwebapp-deployment'
+//   params: {
+//     location: location
+//     environmentName: environmentName
+//     resourcePrefix: resourcePrefix
+//     tags: tags
+//     functionAppName: ''  // Function App not deployed yet
+//   }
+// }
 
 // Outputs
 output resourceGroupName string = rg.name
 output storageAccountName string = storage.outputs.storageAccountName
 output cosmosDbAccountName string = cosmosdb.outputs.accountName
 // output functionAppName string = functionapp.outputs.functionAppName  // Commented out - not deployed yet
-output staticWebAppName string = staticwebapp.outputs.staticWebAppName
-output staticWebAppDefaultHostname string = staticwebapp.outputs.defaultHostname
+// output staticWebAppName string = staticwebapp.outputs.staticWebAppName  // Commented out - deployed separately
+// output staticWebAppDefaultHostname string = staticwebapp.outputs.defaultHostname  // Commented out - deployed separately
 output keyVaultName string = keyvault.outputs.keyVaultName
 output searchServiceName string = aisearch.outputs.searchServiceName
 // output documentIntelligenceEndpoint string = documentintelligence.outputs.endpoint  // Commented out - not deployed yet
