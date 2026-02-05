@@ -12,14 +12,14 @@ param keyVaultName string
 var functionAppName = 'func-${resourcePrefix}-${environmentName}'
 var appServicePlanName = 'asp-${resourcePrefix}-${environmentName}'
 
-// App Service Plan (Basic - avoids Consumption quota limits)
+// App Service Plan (Premium - trying different quota category)
 resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
   name: appServicePlanName
   location: location
   tags: tags
   sku: {
-    name: 'B1'
-    tier: 'Basic'
+    name: 'P0v3'
+    tier: 'PremiumV3'
   }
   properties: {
     reserved: true
