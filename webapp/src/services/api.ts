@@ -7,7 +7,7 @@ class ApiClient {
 
   constructor() {
     this.client = axios.create({
-      baseURL: '/api',
+      baseURL: 'https://func-pwonk-v2.azurewebsites.net/api',
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',

@@ -245,47 +245,164 @@ az functionapp config set \
 
 ## Azure Functions Deployment
 
+### ✅ SUCCESSFUL DEPLOYMENT PATTERN (Feb 2026 - After 2-Day Troubleshooting)
+
+**This is the pattern that WORKS. Follow this exactly.**
+
+#### 1. Clean Deployment Directory
+```powershell
+# Use SHORT PATH to avoid Windows MAX_PATH issues
+cd C:\pw-clean
+```
+
+#### 2. Minimal Dependencies (Stage 1)
+```json
+{
+  "dependencies": {
+    "@azure/functions": "^4.5.0",
+    "@azure/cosmos": "^4.0.0",
+    "@azure/identity": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
+```
+
+#### 3. Correct TypeScript Configuration
+```json
+{
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src"  // MUST match include path
+  },
+  "include": ["src/**/*"]
+}
+```
+
+#### 4. Build and Verify
+```powershell
+npm install
+npm run build
+
+# Verify output structure
+ls dist  # Should show: functions/http/*.js, NOT src/functions/
+cat dist/functions/http/healthCheck.js | Select-String "app.http"  # Must see registration
+```
+
+#### 5. Include node_modules in Deployment Package
+```powershell
+Remove-Item deploy.zip -Force -ErrorAction SilentlyContinue
+Compress-Archive -Path dist,host.json,package.json,node_modules -DestinationPath deploy.zip -Force
+```
+
+**CRITICAL:** Include `node_modules` in the zip. Remote build (Oryx) fails silently.
+
+#### 6. Deploy with Azure CLI (NO Remote Build)
+```powershell
+az functionapp deployment source config-zip `
+  --name func-pwonk-v2 `
+  --resource-group rg-pwonk-prod `
+  --src deploy.zip
+
+# NO --build-remote flag!
+```
+
+#### 7. Verify Deployment
+```powershell
+# Check deployment status (should be status: 4)
+az functionapp deployment list --name func-pwonk-v2 --resource-group rg-pwonk-prod
+
+# Test endpoints
+Invoke-WebRequest -Uri "https://func-pwonk-v2.azurewebsites.net/api/health"
+```
+
+### ❌ What DOESN'T Work
+
+**Remote Build with --build-remote true:**
+- Azure Oryx build system fails silently with `status: 3`
+- No error logs in /tmp/oryx-build.log
+- Wasted 2 days trying to debug this
+
+**Using func CLI:**
+- `func azure functionapp publish` only deployed one function instead of both
+- Unclear why it failed, Azure CLI more reliable
+
+**Including Problematic Dependencies Initially:**
+- readability, jsdom, cheerio cause Windows path length issues
+- Add these LATER in stages after basic deployment works
+
 ### Zip Deployment Structure
 
-**Required Files in Zip Root:**
+**✅ Required Files in Zip Root:**
 - `host.json` - Functions host configuration
 - `package.json` - Dependencies and entry point
-- `package-lock.json` - Locked dependency versions
 - `dist/` - Compiled JavaScript (entire directory)
+- `node_modules/` - ALL dependencies installed locally
 
-**DO NOT Include:**
-- `node_modules/` - Causes Windows path length issues
+**❌ DO NOT Include:**
 - `src/` - TypeScript source (not needed at runtime)
 - `.git/`, `.env`, development files
 
-**Correct Zip Command:**
+---
+
+## Static Web App Deployment
+
+### Apply the Same Philosophy
+
+The lessons from Function App deployment apply to Static Web App deployment:
+
+1. **Verify Build Output First**
+   ```powershell
+   cd C:\Users\berginjohn\App\PolicyWonk\webapp
+   ls dist  # Check that build artifacts exist
+   cat dist/index.html  # Verify HTML has correct asset references
+   ```
+
+2. **Use Simple, Direct Deployment Method**
+   - Deploy the `dist/` folder directly
+   - Don't overcomplicate with CI/CD until basic deployment works
+   - Use Azure CLI or SWA CLI
+
+3. **Get Deployment Token**
+   ```powershell
+   az staticwebapp secrets list `
+     --name stapp-pwonk-prod `
+     --resource-group rg-pwonk-prod `
+     --query properties.apiKey `
+     --output tsv
+   ```
+
+4. **Deploy Frontend**
+   ```powershell
+   # Option 1: Using SWA CLI (if installed)
+   cd C:\Users\berginjohn\App\PolicyWonk\webapp
+   swa deploy --app-location . --output-location dist --deployment-token <TOKEN>
+
+   # Option 2: Manual zip deployment (if SWA CLI unavailable)
+   # Upload dist/ contents to Static Web App via Azure Portal
+   ```
+
+5. **Test Deployment**
+   ```powershell
+   Invoke-WebRequest -Uri "https://icy-ocean-0e6729d1e.6.azurestaticapps.net"
+   ```
+
+### Frontend Build Verification
+
+Before deploying, ensure:
+- `dist/index.html` exists
+- `dist/assets/*.js` and `dist/assets/*.css` exist
+- HTML references assets correctly (check paths in index.html)
+
+If build is stale:
 ```powershell
-# From functions/ directory
-Remove-Item deploy.zip -Force -ErrorAction SilentlyContinue
-Compress-Archive -Path dist\*,host.json,package.json,package-lock.json -DestinationPath deploy.zip -Force
+cd C:\Users\berginjohn\App\PolicyWonk\webapp
+npm install
+npm run build
 ```
 
-### Remote Build vs Local Build
-
-**Remote Build (Recommended):**
-```powershell
-az functionapp deployment source config-zip \
-  --name func-pwonk-prod \
-  --resource-group rg-pwonk-prod \
-  --src deploy.zip \
-  --build-remote true \
-  --timeout 600
-```
-
-**Advantages:**
-- Avoids Windows path length issues
-- Azure installs dependencies (node_modules)
-- Proper Linux-compatible binaries
-
-**Disadvantages:**
-- Slower deployment (installs packages)
-- Less control over build process
-- Harder to debug build failures
+---
 
 ### Functions v4 Programming Model
 
