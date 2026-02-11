@@ -56,6 +56,23 @@ class ApiClient {
     const response = await this.client.get('/logs', { params });
     return response.data;
   }
+
+  async getPolicies(params?: {
+    monitored?: boolean;
+    recent?: boolean;
+    limit?: number;
+  }) {
+    const response = await this.client.get('/policies', { params });
+    return response.data;
+  }
+
+  async getAlerts(params?: {
+    active?: boolean;
+    limit?: number;
+  }) {
+    const response = await this.client.get('/alerts', { params });
+    return response.data;
+  }
 }
 
 export const api = new ApiClient();
