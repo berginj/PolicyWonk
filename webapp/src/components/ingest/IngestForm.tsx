@@ -7,6 +7,8 @@ export default function IngestForm() {
   const [docType, setDocType] = useState<'policy' | 'contract'>('policy');
   const [title, setTitle] = useState('');
   const [tags, setTags] = useState('');
+  const [enableMonitoring, setEnableMonitoring] = useState(false);
+  const [monitoringCadence, setMonitoringCadence] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ documentId: string; message: string } | null>(null);
@@ -31,6 +33,19 @@ export default function IngestForm() {
       if (title) metadata.title = title;
       if (tags) metadata.tags = tags.split(',').map(t => t.trim()).filter(t => t);
 
+      if (enableMonitoring) {
+        const nextCheckMs =
+          monitoringCadence === 'daily' ? 24 * 60 * 60 * 1000 :
+          monitoringCadence === 'weekly' ? 7 * 24 * 60 * 60 * 1000 :
+          30 * 24 * 60 * 60 * 1000;
+
+        metadata.monitoringConfig = {
+          enabled: true,
+          cadence: monitoringCadence,
+          nextCheckAt: new Date(Date.now() + nextCheckMs).toISOString()
+        };
+      }
+
       const response = await api.ingestUrl(url, docType, metadata);
 
       setSuccess({
@@ -42,6 +57,8 @@ export default function IngestForm() {
       setUrl('');
       setTitle('');
       setTags('');
+      setEnableMonitoring(false);
+      setMonitoringCadence('daily');
     } catch (err: any) {
       setError(err.response?.data?.error || err.message || 'Failed to submit document');
     } finally {
@@ -53,6 +70,8 @@ export default function IngestForm() {
     setUrl('');
     setTitle('');
     setTags('');
+    setEnableMonitoring(false);
+    setMonitoringCadence('daily');
     setError(null);
     setSuccess(null);
   };
@@ -165,6 +184,41 @@ export default function IngestForm() {
               Comma-separated tags for organization
             </small>
           </div>
+
+          <div className="ingest-form-group">
+            <label className="ingest-checkbox-label">
+              <input
+                type="checkbox"
+                checked={enableMonitoring}
+                onChange={(e) => setEnableMonitoring(e.target.checked)}
+                disabled={loading}
+              />
+              <span>Enable automatic monitoring for changes</span>
+            </label>
+            <small className="ingest-help-text">
+              PolicyWonk will periodically check the source URL for updates and compute diffs
+            </small>
+          </div>
+
+          {enableMonitoring && (
+            <div className="ingest-form-group">
+              <label htmlFor="cadence">Monitoring Frequency</label>
+              <select
+                id="cadence"
+                value={monitoringCadence}
+                onChange={(e) => setMonitoringCadence(e.target.value as 'daily' | 'weekly' | 'monthly')}
+                disabled={loading}
+                className="ingest-input"
+              >
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+              <small className="ingest-help-text">
+                How often to check for changes
+              </small>
+            </div>
+          )}
 
           <div className="ingest-form-actions">
             <button
