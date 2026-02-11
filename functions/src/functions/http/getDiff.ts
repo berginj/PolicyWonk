@@ -1,10 +1,12 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
+import { cosmosService } from '../../services/cosmosService';
+import { isAppError } from '../../utils/errors';
 
 export async function getDiff(
   request: HttpRequest,
   context: InvocationContext
 ): Promise<HttpResponseInit> {
-  context.log('getDiff called');
+  context.log('getDiff called', { diffId: request.params.id });
 
   const diffId = request.params.id;
 
@@ -15,17 +17,39 @@ export async function getDiff(
     };
   }
 
-  // For now, return mock data to prove deployment works
-  // We'll add real Cosmos DB integration once deployment is stable
-  return {
-    status: 200,
-    jsonBody: {
-      diffId: diffId,
-      status: 'mock',
-      message: 'getDiff endpoint is working! (mock data)',
-      timestamp: new Date().toISOString()
+  try {
+    // Query Cosmos DB for the diff record
+    const diff = await cosmosService.getDocument('diffs', diffId);
+
+    if (!diff) {
+      context.log('Diff not found', { diffId });
+      return {
+        status: 404,
+        jsonBody: { error: 'Diff not found', diffId }
+      };
     }
-  };
+
+    context.log('Diff retrieved successfully', { diffId, changeType: diff.changeType });
+
+    return {
+      status: 200,
+      jsonBody: diff
+    };
+  } catch (error: any) {
+    if (isAppError(error)) {
+      context.log('App error retrieving diff', { diffId, error: error.message });
+      return {
+        status: error.statusCode,
+        jsonBody: { error: error.message }
+      };
+    }
+
+    context.log('Unexpected error retrieving diff', { diffId, error: error.message });
+    return {
+      status: 500,
+      jsonBody: { error: 'Internal server error' }
+    };
+  }
 }
 
 app.http('getDiff', {
