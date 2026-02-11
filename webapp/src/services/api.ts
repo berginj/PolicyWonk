@@ -43,6 +43,19 @@ class ApiClient {
     const response = await this.client.get('/documents', { params: query });
     return response.data;
   }
+
+  async getLogs(params: {
+    correlationId?: string;
+    functionName?: string;
+    level?: string;
+    startDate?: string;
+    endDate?: string;
+    skip?: number;
+    take?: number;
+  }) {
+    const response = await this.client.get('/logs', { params });
+    return response.data;
+  }
 }
 
 export const api = new ApiClient();
