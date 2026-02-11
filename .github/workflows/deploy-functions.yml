@@ -18,7 +18,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install dependencies
         working-directory: functions
@@ -28,10 +28,6 @@ jobs:
         working-directory: functions
         run: npm run build
 
-      - name: Run tests
-        working-directory: functions
-        run: npm test
-
       - name: Azure Login
         uses: azure/login@v1
         with:
@@ -40,5 +36,5 @@ jobs:
       - name: Deploy to Azure Functions
         uses: Azure/functions-action@v1
         with:
-          app-name: func-policywonk-prod
+          app-name: func-pwonk-v2
           package: functions

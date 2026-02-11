@@ -1,68 +1,31 @@
-// GET /api/diffs/{id} - Get diff details
-
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
-import { cosmosService } from '../../services/cosmosService';
-import { DiffRecord } from '../../types/diff';
-import { requireAuth, requireAnyRole, Role } from '../../utils/auth';
-import { NotFoundError, isAppError } from '../../utils/errors';
-import { createLogger } from '../../utils/logger';
 
 export async function getDiff(
   request: HttpRequest,
   context: InvocationContext
 ): Promise<HttpResponseInit> {
-  const logger = createLogger({
-    functionName: 'getDiff',
-    correlationId: context.invocationId,
-  });
+  context.log('getDiff called');
 
-  try {
-    // Authentication
-    const user = requireAuth(request);
-    requireAnyRole(user, [Role.ADMIN, Role.ANALYST]);
+  const diffId = request.params.id;
 
-    const diffId = request.params.id;
-    if (!diffId) {
-      return {
-        status: 400,
-        jsonBody: { error: 'Diff ID is required' },
-      };
-    }
-
-    logger.info('Getting diff', { diffId });
-
-    // Query diff by diffId
-    const diffs = await cosmosService.queryDocuments<DiffRecord>(
-      'diffs',
-      'SELECT * FROM c WHERE c.diffId = @diffId',
-      [{ name: '@diffId', value: diffId }]
-    );
-
-    if (diffs.length === 0) {
-      throw new NotFoundError('Diff', diffId);
-    }
-
-    const diff = diffs[0];
-
+  if (!diffId) {
     return {
-      status: 200,
-      jsonBody: diff,
-    };
-  } catch (error: any) {
-    if (isAppError(error)) {
-      logger.warn('Error getting diff', { error: error.message });
-      return {
-        status: error.statusCode,
-        jsonBody: { error: error.message },
-      };
-    }
-
-    logger.error('Unexpected error getting diff', error);
-    return {
-      status: 500,
-      jsonBody: { error: 'Internal server error' },
+      status: 400,
+      jsonBody: { error: 'Diff ID is required' }
     };
   }
+
+  // For now, return mock data to prove deployment works
+  // We'll add real Cosmos DB integration once deployment is stable
+  return {
+    status: 200,
+    jsonBody: {
+      diffId: diffId,
+      status: 'mock',
+      message: 'getDiff endpoint is working! (mock data)',
+      timestamp: new Date().toISOString()
+    }
+  };
 }
 
 app.http('getDiff', {

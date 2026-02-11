@@ -1,4 +1,3 @@
-// Simple health check endpoint - no dependencies
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 
 export async function healthCheck(
