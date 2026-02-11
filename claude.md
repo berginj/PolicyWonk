@@ -49,6 +49,65 @@ Before deploying infrastructure or code, verify:
   - Key Vault Secrets User
 - [ ] Runtime version matches package.json engines requirement
 
+### CRITICAL: Deployment Package Verification (Added after 2-day troubleshooting saga)
+
+**STOP AND VERIFY BEFORE EVERY DEPLOYMENT:**
+
+Before running `func azure functionapp publish` or `az functionapp deployment source config-zip`, **ALWAYS** run these checks:
+
+```powershell
+# 1. Verify you're in the DEPLOYMENT directory, not source
+pwd  # Should be C:\Temp\func-minimal or similar, NOT the source functions folder
+
+# 2. Check package.json dependencies - should be MINIMAL for initial deployment
+cat package.json | Select-String "readability","jsdom","cheerio","axios"
+# If any of these appear, you're using the WRONG package.json!
+
+# 3. List what will actually be deployed
+ls -Recurse | Select-Object FullName | Out-File deploy-manifest.txt
+cat deploy-manifest.txt
+# Look for:
+# - Is node_modules present? (if yes, check if paths are too long)
+# - Is dist/ folder present with compiled code?
+# - Is host.json present?
+# - Are there unexpected files from source?
+
+# 4. Check for problematic dependencies in node_modules
+Test-Path node_modules\readability
+# Should return False for minimal deployment
+
+# 5. Verify compiled function has registration
+cat dist\functions\http\healthCheck.js | Select-String "app.http"
+# Must see: app.http('healthCheck', {...})
+```
+
+**Red Flags That Mean STOP:**
+- ❌ You're in C:\Users\berginjohn\App\PolicyWonk\functions\ (this is SOURCE, not deployment dir)
+- ❌ package.json has more than 3-4 dependencies for initial test
+- ❌ node_modules\readability exists (Windows path length killer)
+- ❌ You copied files from source without checking what's in them first
+- ❌ dist/ folder is missing or empty
+- ❌ host.json is missing
+
+**Why This Matters:**
+Over 2 days, we repeatedly:
+1. Created "clean" deployment directories
+2. Copied files from the source directory
+3. Deployed without verifying what we copied
+4. Hit the same readability/path length issues
+5. Repeated 20+ times
+
+The source directory (`C:\Users\berginjohn\App\PolicyWonk\functions\`) is **contaminated** with:
+- Full production dependencies (readability, jsdom, cheerio, etc.)
+- Potentially old node_modules with long Windows paths
+- Supporting code that imports dependencies we don't have
+
+**The Solution:**
+- NEVER blindly copy from source
+- ALWAYS verify deployment package contents BEFORE deploying
+- Use the checklist above EVERY SINGLE TIME
+- Start from scratch rather than copying when in doubt
+
 ---
 
 ## Azure Quota and Resource Issues

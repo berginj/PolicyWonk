@@ -12,14 +12,14 @@ resource searchService 'Microsoft.Search/searchServices@2023-11-01' = {
   location: location
   tags: tags
   sku: {
-    name: 'free'  // FREE tier: 50MB storage, 3 indexes, 3 indexers - perfect for <200 policies
+    name: 'basic'  // Basic tier: 2GB storage, 15 indexes - avoids FREE tier quota limits (~$75/mo)
   }
   properties: {
     replicaCount: 1
     partitionCount: 1
     hostingMode: 'default'
     publicNetworkAccess: 'enabled'
-    semanticSearch: 'free'
+    semanticSearch: 'disabled'  // Not available on Basic tier
   }
   identity: {
     type: 'SystemAssigned'

@@ -30,7 +30,7 @@ resource embeddingDeployment 'Microsoft.CognitiveServices/accounts/deployments@2
   name: 'text-embedding-3-large'
   sku: {
     name: 'Standard'
-    capacity: 50
+    capacity: 10
   }
   properties: {
     model: {
@@ -47,7 +47,7 @@ resource chatDeployment 'Microsoft.CognitiveServices/accounts/deployments@2023-1
   name: 'gpt-4o'
   sku: {
     name: 'Standard'
-    capacity: 30
+    capacity: 10
   }
   properties: {
     model: {

@@ -4,7 +4,7 @@ param location string
 param environmentName string
 param resourcePrefix string
 param tags object
-param functionAppName string
+param functionAppName string = ''  // Optional - leave empty if no Function App deployed
 
 var staticWebAppName = 'stapp-${resourcePrefix}-${environmentName}'
 
@@ -30,8 +30,8 @@ resource staticWebApp 'Microsoft.Web/staticSites@2023-01-01' = {
   }
 }
 
-// Link Function App as backend (for API calls)
-resource functionBackend 'Microsoft.Web/staticSites/linkedBackends@2023-01-01' = {
+// Link Function App as backend (for API calls) - only if Function App exists
+resource functionBackend 'Microsoft.Web/staticSites/linkedBackends@2023-01-01' = if (functionAppName != '') {
   parent: staticWebApp
   name: 'backend'
   properties: {
