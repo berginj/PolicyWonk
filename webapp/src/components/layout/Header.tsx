@@ -11,8 +11,8 @@ export default function Header() {
         </Link>
         <nav className="nav">
           <Link to="/" className="nav-link">Dashboard</Link>
-          <Link to="/search" className="nav-link">Search</Link>
-          <Link to="/alerts" className="nav-link">Alerts</Link>
+          <Link to="/ingest" className="nav-link">Ingest Policy</Link>
+          <Link to="/logs" className="nav-link">Logs</Link>
         </nav>
       </div>
     </header>
