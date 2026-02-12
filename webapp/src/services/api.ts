@@ -31,7 +31,7 @@ class ApiClient {
   }
 
   async ingestUrl(url: string, docType: 'policy' | 'contract', metadata?: any) {
-    const response = await this.client.post('/ingest/url/simple', {
+    const response = await this.client.post('/ingest/url', {
       url,
       docType,
       metadata,
