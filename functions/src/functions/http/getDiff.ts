@@ -1,6 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { cosmosService } from '../../services/cosmosService';
 import { isAppError } from '../../utils/errors';
+import { DiffRecord } from '../../types/diff';
 
 export async function getDiff(
   request: HttpRequest,
@@ -18,10 +19,14 @@ export async function getDiff(
   }
 
   try {
-    // Query Cosmos DB for the diff record
-    const diff = await cosmosService.getDocument('diffs', diffId);
+    // Query Cosmos DB for the diff record (we don't know the partition key/policyId)
+    const diffs = await cosmosService.queryDocuments<DiffRecord>(
+      'diffs',
+      'SELECT * FROM c WHERE c.diffId = @diffId',
+      [{ name: '@diffId', value: diffId }]
+    );
 
-    if (!diff) {
+    if (diffs.length === 0) {
       context.log('Diff not found', { diffId });
       return {
         status: 404,
@@ -29,6 +34,7 @@ export async function getDiff(
       };
     }
 
+    const diff = diffs[0];
     context.log('Diff retrieved successfully', { diffId, changeType: diff.changeType });
 
     return {

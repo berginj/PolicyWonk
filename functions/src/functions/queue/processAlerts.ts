@@ -57,7 +57,7 @@ export async function processAlerts(
     );
 
     if (!policy) {
-      logger.warn('Policy not found', { policyId: message.policyId });
+      logger.warn('Policy not found', { policyId: diff.policyId });
       return;
     }
 
@@ -80,7 +80,7 @@ export async function processAlerts(
       }
     }
 
-    logger.info('Alert processing completed', { diffId: message.diffId });
+    logger.info('Alert processing completed', { diffId: message.entityId });
   } catch (error) {
     logger.error('Alert processing failed', error);
     throw error;

@@ -102,7 +102,7 @@ export async function updatePolicyMonitoring(
     if (isAppError(error)) {
       return {
         status: error.statusCode,
-        jsonBody: { error: error.message, code: error.code }
+        jsonBody: { error: error.message }
       };
     }
 
