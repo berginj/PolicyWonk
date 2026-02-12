@@ -11,7 +11,9 @@ export default function IngestForm() {
   const [monitoringCadence, setMonitoringCadence] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<{ documentId: string; message: string } | null>(null);
+  const [success, setSuccess] = useState<{ documentId: string; title: string; message: string } | null>(null);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,6 +52,7 @@ export default function IngestForm() {
 
       setSuccess({
         documentId: response.documentId,
+        title: response.title || title || url,
         message: response.message || 'Document submitted for processing'
       });
 
@@ -74,6 +77,26 @@ export default function IngestForm() {
     setMonitoringCadence('daily');
     setError(null);
     setSuccess(null);
+    setEditingTitle(false);
+    setNewTitle('');
+  };
+
+  const handleUpdateTitle = async () => {
+    if (!success || !newTitle.trim()) return;
+
+    try {
+      await api.updateDocument(success.documentId, { title: newTitle });
+      setSuccess({ ...success, title: newTitle });
+      setEditingTitle(false);
+      setNewTitle('');
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to update title');
+    }
+  };
+
+  const startEditingTitle = () => {
+    setNewTitle(success?.title || '');
+    setEditingTitle(true);
   };
 
   return (
@@ -94,8 +117,49 @@ export default function IngestForm() {
         {success && (
           <div className="ingest-alert ingest-alert-success">
             <strong>Success!</strong> {success.message}
-            <div className="ingest-document-id">
-              Document ID: <code>{success.documentId}</code>
+            <div className="ingest-document-info">
+              <div className="ingest-document-id">
+                Document ID: <code>{success.documentId}</code>
+              </div>
+              <div className="ingest-document-title">
+                <strong>Title:</strong>{' '}
+                {editingTitle ? (
+                  <div className="title-edit-form">
+                    <input
+                      type="text"
+                      value={newTitle}
+                      onChange={(e) => setNewTitle(e.target.value)}
+                      className="ingest-input"
+                      style={{ display: 'inline-block', width: 'auto', marginLeft: '0.5rem' }}
+                    />
+                    <button
+                      onClick={handleUpdateTitle}
+                      className="title-edit-button"
+                      style={{ marginLeft: '0.5rem' }}
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => setEditingTitle(false)}
+                      className="title-edit-button"
+                      style={{ marginLeft: '0.25rem' }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <span className="document-title-text">{success.title}</span>
+                    <button
+                      onClick={startEditingTitle}
+                      className="title-edit-button"
+                      style={{ marginLeft: '0.5rem', fontSize: '0.85rem' }}
+                    >
+                      ✎ Edit
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
             <p className="ingest-next-steps">
               Processing typically takes 30-60 seconds. Check the logs to monitor progress.
@@ -154,18 +218,18 @@ export default function IngestForm() {
           </div>
 
           <div className="ingest-form-group">
-            <label htmlFor="title">Title (optional)</label>
+            <label htmlFor="title">Title (optional - auto-extracted if blank)</label>
             <input
               type="text"
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="White House Privacy Policy"
+              placeholder="Leave blank to auto-extract from page"
               disabled={loading}
               className="ingest-input"
             />
             <small className="ingest-help-text">
-              A friendly name for this document
+              The system will automatically extract the title from the page if left blank. You can edit it later.
             </small>
           </div>
 

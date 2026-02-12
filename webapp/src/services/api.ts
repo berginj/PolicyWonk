@@ -31,11 +31,20 @@ class ApiClient {
   }
 
   async ingestUrl(url: string, docType: 'policy' | 'contract', metadata?: any) {
-    const response = await this.client.post('/ingest/url', {
+    const response = await this.client.post('/ingest/url/simple', {
       url,
       docType,
       metadata,
     });
+    return response.data;
+  }
+
+  async updateDocument(documentId: string, updates: {
+    title?: string;
+    tags?: string[];
+    metadata?: any;
+  }) {
+    const response = await this.client.patch(`/documents/${documentId}`, updates);
     return response.data;
   }
 

@@ -146,7 +146,7 @@ async function ingestPolicy() {
 
   try {
     const response = await makeRequest(
-      `${API_BASE_URL}/ingest/url`,
+      `${API_BASE_URL}/ingest/url/simple`,
       'POST',
       payload
     );
