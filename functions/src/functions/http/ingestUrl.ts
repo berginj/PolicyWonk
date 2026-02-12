@@ -62,9 +62,12 @@ export async function ingestUrl(
   });
 
   try {
+    // Authentication disabled for testing - allows anonymous access
     // TODO: Re-enable authentication after initial testing
     // const user = requireAuth(request);
     // requireAnyRole(user, [Role.ADMIN, Role.ANALYST]);
+
+    requestLogger.info('ingestUrl called - authentication bypassed for testing');
 
     // Parse and validate request
     const body: IngestUrlRequest = await request.json() as IngestUrlRequest;
