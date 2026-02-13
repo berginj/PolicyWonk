@@ -25,6 +25,25 @@ PolicyWonk continuously monitors public cloud policy documents, detects updates,
 - **Hybrid Search**: Azure AI Search with keyword + vector semantic search
 - **Tagging & Classification**: Rule-based + LLM tagging for compliance frameworks (FedRAMP, NIST, ISO27001, SOC2, etc.)
 
+### 🆕 Multi-Version Policy Tracking (NEW!)
+**Status**: ✅ Production Ready (2026-02-13)
+
+- **Smart Landing Page Detection**: Automatically identifies NIST landing pages and downloads actual PDFs instead of HTML
+- **Version Information Extraction**: Parses publication series, revision, update number, and status from URLs
+- **Multi-Format Support**: Tracks and provides download links for PDF, Word, Excel, and JSON formats
+- **Version Chains**: Links related policy versions for easy navigation through history
+- **Deprecation Monitoring**: Daily checks detect withdrawn/superseded policies automatically
+- **Rich UI**: Version information cards, format buttons, status badges, and version timelines
+
+**Supported URL Patterns**: NIST Special Publications (SP 800-53, SP 800-171, etc.)
+
+**Learn More**:
+- 📘 [User Guide](./USER-GUIDE.md) - How to use multi-version tracking
+- 📋 [Next Steps](./NEXT-STEPS.md) - Action plan and roadmap
+- 📕 [Implementation Details](./FINAL-SUMMARY.md) - Complete technical summary
+
+**Quick Test**: Visit [SP 800-53 Rev 5 Update 1 Example](https://proud-sand-06951430f.6.azurestaticapps.net/policies/5a0d18f1-df11-4819-83a2-c746c503b6aa)
+
 ## Architecture
 
 ### Technology Stack
