@@ -241,8 +241,8 @@ export async function analyzeLandingPage(url: string, html: string): Promise<Lan
     const deprecation = detectDeprecation(html);
 
     // Determine if this is a landing page
-    // Heuristics: has download links and relatively small HTML (< 50KB)
-    const isLandingPage = downloadLinks.length > 0 && html.length < 50000;
+    // Heuristics: has download links and relatively small HTML (< 150KB)
+    const isLandingPage = downloadLinks.length > 0 && html.length < 150000;
 
     const result: LandingPageInfo = {
       versionInfo,
