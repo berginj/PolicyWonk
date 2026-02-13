@@ -56,48 +56,81 @@ export async function getLogs(
     context.log('Executing KQL query', { kqlQuery });
 
     // Query Application Insights
-    const credential = new DefaultAzureCredential();
-    const logsClient = new LogsQueryClient(credential);
+    try {
+      const credential = new DefaultAzureCredential();
+      const logsClient = new LogsQueryClient(credential);
 
-    const result = await logsClient.queryWorkspace(
-      workspaceId,
-      kqlQuery,
-      { duration: 'P1D' } // Last 24 hours
-    );
+      const result = await logsClient.queryWorkspace(
+        workspaceId,
+        kqlQuery,
+        { duration: 'P1D' } // Last 24 hours
+      );
 
-    if (result.status === 'Success') {
-      const rows = result.tables[0].rows;
+      if (result.status === 'Success') {
+        // Handle empty results gracefully
+        if (!result.tables || result.tables.length === 0 || !result.tables[0].rows) {
+          return {
+            status: 200,
+            jsonBody: {
+              logs: [],
+              total: 0,
+              hasMore: false,
+              message: 'No logs found. The workspace may be new or no telemetry has been generated yet.'
+            }
+          };
+        }
 
-      // Transform rows to log format
-      const logs = rows.map((row: any) => ({
-        timestamp: row[0],
-        level: getSeverityName(row[1]),
-        message: row[2],
-        correlationId: row[3],
-        functionName: row[4]?.functionName || 'unknown',
-        data: row[4] // Full customDimensions
-      }));
+        const rows = result.tables[0].rows;
 
-      // Apply pagination
-      const paginatedLogs = logs.slice(skip, skip + take);
+        // Transform rows to log format
+        const logs = rows.map((row: any) => ({
+          timestamp: row[0],
+          level: getSeverityName(row[1]),
+          message: row[2],
+          correlationId: row[3],
+          functionName: row[4]?.functionName || 'unknown',
+          data: row[4] // Full customDimensions
+        }));
 
+        // Apply pagination
+        const paginatedLogs = logs.slice(skip, skip + take);
+
+        return {
+          status: 200,
+          jsonBody: {
+            logs: paginatedLogs,
+            total: logs.length,
+            hasMore: skip + take < logs.length
+          }
+        };
+      } else {
+        context.log('Query failed', { status: result.status });
+        return {
+          status: 200,
+          jsonBody: {
+            logs: [],
+            total: 0,
+            hasMore: false,
+            message: 'Query returned no results. The workspace may need more time to collect data.'
+          }
+        };
+      }
+    } catch (queryError: any) {
+      context.log('Error querying Log Analytics', { error: queryError.message });
+
+      // Return empty results instead of error for new/empty workspaces
       return {
         status: 200,
         jsonBody: {
-          logs: paginatedLogs,
-          total: logs.length,
-          hasMore: skip + take < logs.length
+          logs: [],
+          total: 0,
+          hasMore: false,
+          message: 'Unable to query logs. The workspace may be new or permissions are still propagating. Please try again in a few minutes.'
         }
-      };
-    } else {
-      context.log('Query failed', { status: result.status });
-      return {
-        status: 500,
-        jsonBody: { error: 'Failed to query logs', details: result.status }
       };
     }
   } catch (error: any) {
-    context.log('Error querying logs', { error: error.message });
+    context.log('Error in getLogs handler', { error: error.message });
     return {
       status: 500,
       jsonBody: { error: 'Internal server error', message: error.message }
