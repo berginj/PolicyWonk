@@ -1,52 +1,60 @@
+/* Dashboard Styles */
+
 .dashboard {
-  max-width: 1200px;
+  padding: 2rem;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 40px 20px;
 }
 
 .dashboard-header {
-  margin-bottom: 40px;
+  margin-bottom: 2rem;
 }
 
 .dashboard-header h2 {
-  margin: 0 0 8px 0;
-  font-size: 32px;
-  font-weight: 700;
+  color: #1a202c;
+  font-size: 28px;
+  margin-bottom: 0.5rem;
 }
 
 .dashboard-header p {
-  margin: 0;
-  color: #666;
+  color: #718096;
   font-size: 16px;
 }
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 1.5rem;
 }
 
 .card {
   background: white;
-  padding: 24px;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .card h3 {
-  margin: 0 0 16px 0;
+  color: #2d3748;
   font-size: 18px;
+  margin-bottom: 1rem;
   font-weight: 600;
-  border-bottom: 2px solid #e2e8f0;
-  padding-bottom: 8px;
 }
 
-.card p {
-  margin: 0;
-  color: #666;
+.card-footer {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+  color: #718096;
+  font-size: 14px;
 }
 
-.dashboard-loading,
+.dashboard-loading {
+  text-align: center;
+  padding: 3rem;
+  color: #718096;
+}
+
 .dashboard-error {
   text-align: center;
   padding: 3rem;
@@ -91,15 +99,21 @@
   border-bottom: none;
 }
 
-.policy-title {
+.policy-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 6px;
+}
+
+.policy-title {
+  flex: 1;
 }
 
 .policy-title a {
   color: #2d3748;
   text-decoration: none;
-  font-weight: 600;
-  font-size: 15px;
+  font-weight: 500;
 }
 
 .policy-title a:hover {
@@ -108,50 +122,47 @@
 
 .policy-meta {
   display: flex;
+  gap: 12px;
   align-items: center;
-  gap: 10px;
   font-size: 13px;
-  color: #718096;
 }
 
 .policy-date {
   color: #718096;
 }
 
+.change-badge {
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.change-badge-major {
+  background-color: #fed7d7;
+  color: #c53030;
+}
+
+.change-badge-moderate {
+  background-color: #feebc8;
+  color: #c05621;
+}
+
+.change-badge-minor {
+  background-color: #c6f6d5;
+  color: #22543d;
+}
+
 .view-diff-link {
   color: #4299e1;
   text-decoration: none;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 13px;
 }
 
 .view-diff-link:hover {
   text-decoration: underline;
-}
-
-.change-badge {
-  display: inline-block;
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.change-major {
-  background-color: #fed7d7;
-  color: #c53030;
-}
-
-.change-moderate {
-  background-color: #feebc8;
-  color: #c05621;
-}
-
-.change-minor {
-  background-color: #bee3f8;
-  color: #2c5282;
 }
 
 .alert-item {
@@ -164,7 +175,7 @@
 }
 
 .alert-name {
-  font-weight: 600;
+  font-weight: 500;
   color: #2d3748;
   margin-bottom: 4px;
 }
@@ -172,37 +183,29 @@
 .alert-type {
   font-size: 13px;
   color: #718096;
-  text-transform: capitalize;
+  text-transform: uppercase;
 }
 
-.card-footer {
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid #e2e8f0;
-  font-size: 14px;
-  color: #4a5568;
+.delete-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px 8px;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+
+.delete-button:hover:not(:disabled) {
+  opacity: 1;
+}
+
+.delete-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
 }
 
 .card-footer strong {
   color: #2d3748;
-  font-size: 16px;
-}
-
-.stat-display {
-  text-align: center;
-  padding: 20px 0;
-}
-
-.stat-number {
-  font-size: 48px;
-  font-weight: 700;
-  color: #4299e1;
-  margin-bottom: 8px;
-}
-
-.stat-label {
-  font-size: 14px;
-  color: #718096;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  font-size: 18px;
 }

@@ -1,0 +1,27 @@
+========================================
+CHECK IF PERMISSIONS WERE GRANTED
+========================================
+
+Run these commands in PowerShell to verify:
+
+# 1. Check if Function App has managed identity enabled
+az functionapp identity show --name func-pwonk-v2 --resource-group rg-policywonk-prod
+
+# 2. Get the principal ID
+$principalId = az functionapp identity show --name func-pwonk-v2 --resource-group rg-policywonk-prod --query principalId -o tsv
+Write-Host "Principal ID: $principalId"
+
+# 3. Check storage account name
+$storageName = az storage account list --resource-group rg-policywonk-prod --query "[0].name" -o tsv
+Write-Host "Storage Account: $storageName"
+
+# 4. List role assignments for this principal on the storage account
+az role assignment list --assignee $principalId --scope "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/rg-policywonk-prod/providers/Microsoft.Storage/storageAccounts/$storageName" --output table
+
+# 5. Try granting Storage Blob Data Contributor again (should show conflict if already exists)
+$storageId = az storage account show --name $storageName --resource-group rg-policywonk-prod --query id -o tsv
+az role assignment create --assignee $principalId --role "Storage Blob Data Contributor" --scope $storageId
+
+========================================
+PASTE THE OUTPUT HERE
+========================================

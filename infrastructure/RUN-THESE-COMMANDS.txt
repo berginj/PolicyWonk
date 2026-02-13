@@ -1,0 +1,54 @@
+========================================
+GRANT PERMISSIONS TO FUNCTION APP
+========================================
+
+Open PowerShell and copy/paste these commands ONE AT A TIME:
+
+# 1. Get Function App principal ID
+$principalId = az functionapp identity show --name func-pwonk-v2 --resource-group rg-policywonk-prod --query principalId -o tsv
+echo "Principal ID: $principalId"
+
+# 2. Get Storage Account name
+$storageName = az storage account list --resource-group rg-policywonk-prod --query "[0].name" -o tsv
+echo "Storage Account: $storageName"
+
+# 3. Get Storage Account ID
+$storageId = az storage account show --name $storageName --resource-group rg-policywonk-prod --query id -o tsv
+
+# 4. Grant Storage Blob Data Contributor
+az role assignment create --assignee $principalId --role "Storage Blob Data Contributor" --scope $storageId
+
+# 5. Grant Storage Queue Data Contributor
+az role assignment create --assignee $principalId --role "Storage Queue Data Contributor" --scope $storageId
+
+# 6. Get Cosmos DB name
+$cosmosName = az cosmosdb list --resource-group rg-policywonk-prod --query "[0].name" -o tsv
+echo "Cosmos DB: $cosmosName"
+
+# 7. Grant Cosmos DB Data Contributor
+az cosmosdb sql role assignment create --account-name $cosmosName --resource-group rg-policywonk-prod --scope "/" --principal-id $principalId --role-definition-name "Cosmos DB Built-in Data Contributor"
+
+# 8. Get OpenAI name
+$openaiName = az cognitiveservices account list --resource-group rg-policywonk-prod --query "[?kind=='OpenAI'].name | [0]" -o tsv
+$openaiId = az cognitiveservices account show --name $openaiName --resource-group rg-policywonk-prod --query id -o tsv
+
+# 9. Grant OpenAI User role
+az role assignment create --assignee $principalId --role "Cognitive Services OpenAI User" --scope $openaiId
+
+# 10. Get Document Intelligence name
+$docIntelName = az cognitiveservices account list --resource-group rg-policywonk-prod --query "[?kind=='FormRecognizer'].name | [0]" -o tsv
+$docIntelId = az cognitiveservices account show --name $docIntelName --resource-group rg-policywonk-prod --query id -o tsv
+
+# 11. Grant Document Intelligence User role
+az role assignment create --assignee $principalId --role "Cognitive Services User" --scope $docIntelId
+
+# 12. Get Search service name
+$searchName = az search service list --resource-group rg-policywonk-prod --query "[0].name" -o tsv
+$searchId = az search service show --name $searchName --resource-group rg-policywonk-prod --query id -o tsv
+
+# 13. Grant Search Index Data Contributor
+az role assignment create --assignee $principalId --role "Search Index Data Contributor" --scope $searchId
+
+========================================
+DONE! Wait 2 minutes for permissions to propagate.
+========================================

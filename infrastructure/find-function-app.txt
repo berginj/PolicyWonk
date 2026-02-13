@@ -1,0 +1,11 @@
+========================================
+FIND THE FUNCTION APP
+========================================
+
+Run this command to find which resource group the Function App is in:
+
+az functionapp list --query "[?name=='func-pwonk-v2'].{name:name, resourceGroup:resourceGroup, location:location}" --output table
+
+This will show you the correct resource group name.
+
+Then use that resource group in the permission commands!

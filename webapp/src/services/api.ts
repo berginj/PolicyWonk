@@ -82,6 +82,11 @@ class ApiClient {
     const response = await this.client.get('/alerts', { params });
     return response.data;
   }
+
+  async deleteDocument(documentId: string) {
+    const response = await this.client.delete(`/documents/${documentId}`);
+    return response.data;
+  }
 }
 
 export const api = new ApiClient();

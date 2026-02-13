@@ -1,0 +1,70 @@
+========================================
+GRANT PERMISSIONS - CORRECTED COMMANDS
+========================================
+
+The Function App is in: rg-pwonk-prod (not rg-policywonk-prod!)
+
+Run these commands in PowerShell:
+
+# 1. Get Function App principal ID (CORRECT resource group)
+$principalId = az functionapp identity show --name func-pwonk-v2 --resource-group rg-pwonk-prod --query principalId -o tsv
+Write-Host "Principal ID: $principalId"
+
+# 2. Get Storage Account name (check both resource groups)
+$storageName = az storage account list --resource-group rg-policywonk-prod --query "[0].name" -o tsv
+if (-not $storageName) {
+    $storageName = az storage account list --resource-group rg-pwonk-prod --query "[0].name" -o tsv
+}
+Write-Host "Storage Account: $storageName"
+
+# 3. Get Storage Account resource group
+$storageRg = az storage account show --name $storageName --query resourceGroup -o tsv
+Write-Host "Storage RG: $storageRg"
+
+# 4. Get Storage Account ID
+$storageId = az storage account show --name $storageName --resource-group $storageRg --query id -o tsv
+
+# 5. Grant Storage Blob Data Contributor
+az role assignment create --assignee $principalId --role "Storage Blob Data Contributor" --scope $storageId
+
+# 6. Grant Storage Queue Data Contributor
+az role assignment create --assignee $principalId --role "Storage Queue Data Contributor" --scope $storageId
+
+# 7. Get Cosmos DB (check both resource groups)
+$cosmosName = az cosmosdb list --resource-group rg-policywonk-prod --query "[0].name" -o tsv
+if (-not $cosmosName) {
+    $cosmosName = az cosmosdb list --resource-group rg-pwonk-prod --query "[0].name" -o tsv
+}
+Write-Host "Cosmos DB: $cosmosName"
+
+# 8. Get Cosmos DB resource group
+$cosmosRg = az cosmosdb show --name $cosmosName --query resourceGroup -o tsv
+
+# 9. Grant Cosmos DB permissions
+az cosmosdb sql role assignment create --account-name $cosmosName --resource-group $cosmosRg --scope "/" --principal-id $principalId --role-definition-name "Cosmos DB Built-in Data Contributor"
+
+# 10. Get OpenAI account
+$openaiName = az cognitiveservices account list --query "[?kind=='OpenAI'].name | [0]" -o tsv
+Write-Host "OpenAI: $openaiName"
+$openaiId = az cognitiveservices account show --name $openaiName --query id -o tsv
+
+# 11. Grant OpenAI permissions
+az role assignment create --assignee $principalId --role "Cognitive Services OpenAI User" --scope $openaiId
+
+# 12. Get Document Intelligence
+$docIntelName = az cognitiveservices account list --query "[?kind=='FormRecognizer'].name | [0]" -o tsv
+Write-Host "Document Intelligence: $docIntelName"
+$docIntelId = az cognitiveservices account show --name $docIntelName --query id -o tsv
+
+# 13. Grant Document Intelligence permissions
+az role assignment create --assignee $principalId --role "Cognitive Services User" --scope $docIntelId
+
+# 14. Get Search service
+$searchName = az search service list --query "[0].name" -o tsv
+Write-Host "Search: $searchName"
+$searchId = az search service show --name $searchName --query id -o tsv
+
+# 15. Grant Search permissions
+az role assignment create --assignee $principalId --role "Search Index Data Contributor" --scope $searchId
+
+Write-Host "`nDone! Wait 2 minutes for permissions to propagate."

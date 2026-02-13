@@ -32,6 +32,7 @@ export default function Dashboard() {
   const [activeAlerts, setActiveAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -107,8 +108,18 @@ export default function Dashboard() {
             <ul className="policy-list">
               {recentPolicies.map((policy) => (
                 <li key={policy.id} className="policy-item">
-                  <div className="policy-title">
-                    <Link to={`/policies/${policy.id}`}>{policy.title}</Link>
+                  <div className="policy-header">
+                    <div className="policy-title">
+                      <Link to={`/policies/${policy.id}`}>{policy.title}</Link>
+                    </div>
+                    <button
+                      className="delete-button"
+                      onClick={() => handleDeletePolicy(policy.id, policy.title)}
+                      disabled={deleting === policy.id}
+                      title="Delete this policy"
+                    >
+                      {deleting === policy.id ? '...' : '🗑️'}
+                    </button>
                   </div>
                   {policy.latestDiff && (
                     <div className="policy-meta">

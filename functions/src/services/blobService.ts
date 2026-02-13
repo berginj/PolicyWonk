@@ -88,6 +88,18 @@ class BlobService {
     }
   }
 
+  async deleteBlob(containerName: string, blobName: string): Promise<void> {
+    try {
+      const container = await this.getContainer(containerName);
+      const blockBlobClient = container.getBlockBlobClient(blobName);
+      await blockBlobClient.deleteIfExists();
+      logger.info(`Blob deleted: ${containerName}/${blobName}`);
+    } catch (error) {
+      logger.error(`Failed to delete blob ${containerName}/${blobName}`, error);
+      throw new ExternalServiceError('BlobStorage', error as Error);
+    }
+  }
+
   async generateSasToken(
     containerName: string,
     blobName: string,
