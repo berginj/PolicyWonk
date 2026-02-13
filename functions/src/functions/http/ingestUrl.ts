@@ -9,6 +9,7 @@ import { queueService } from '../../services/queueService';
 import { fetchService } from '../../services/fetchService';
 import { Document, DocType } from '../../types/document';
 import { ProcessingJob } from '../../types/job';
+import { analyzeLandingPage, VersionInfo } from '../../services/versionDetectionService';
 // import { requireAuth, requireAnyRole, Role } from '../../utils/auth';
 import { validateRequired, validateUrl, validateEnum } from '../../utils/validation';
 import { isAppError } from '../../utils/errors';
@@ -87,21 +88,67 @@ export async function ingestUrl(
       };
     }
 
-    // Compute hash
-    const sha256 = crypto.createHash('sha256').update(fetchResult.content).digest('hex');
 
     // Extract title from HTML if not provided
     let title = body.metadata?.title;
+    const contentStr = Buffer.isBuffer(fetchResult.content)
+      ? fetchResult.content.toString('utf-8')
+      : fetchResult.content;
+
     if (!title && fetchResult.contentType && fetchResult.contentType.includes('html')) {
-      const contentStr = Buffer.isBuffer(fetchResult.content)
-        ? fetchResult.content.toString('utf-8')
-        : fetchResult.content;
       title = extractTitleFromHtml(contentStr, body.url);
       requestLogger.info('Extracted title from HTML', { title });
     }
     if (!title) {
       title = body.url;
     }
+
+    // Smart landing page detection
+    let landingPageInfo;
+    let actualContent = fetchResult.content;
+    let actualContentType = fetchResult.contentType || 'application/octet-stream';
+    let actualUrl = body.url;
+    let isLandingPage = false;
+    let downloadUrl: string | undefined;
+
+    if (fetchResult.contentType && fetchResult.contentType.includes('html')) {
+      landingPageInfo = await analyzeLandingPage(body.url, contentStr);
+
+      if (landingPageInfo.isLandingPage && landingPageInfo.downloadLinks.length > 0) {
+        requestLogger.info('Landing page detected', {
+          url: body.url,
+          downloadLinksCount: landingPageInfo.downloadLinks.length,
+          versionInfo: landingPageInfo.versionInfo,
+        });
+
+        // Get best format (PDF preferred)
+        const bestLink = landingPageInfo.downloadLinks[0];
+        downloadUrl = bestLink.url;
+
+        try {
+          // Fetch the actual document
+          const docFetchResult = await fetchService.fetchWithRetry(bestLink.url);
+          if (docFetchResult) {
+            actualContent = docFetchResult.content;
+            actualContentType = docFetchResult.contentType || 'application/pdf';
+            actualUrl = bestLink.url;
+            isLandingPage = true;
+
+            requestLogger.info('Downloaded document from landing page', {
+              format: bestLink.format,
+              url: bestLink.url,
+              size: bestLink.size,
+            });
+          }
+        } catch (error) {
+          requestLogger.warn('Failed to download from landing page, using HTML', { error });
+          // Continue with HTML content
+        }
+      }
+    }
+
+    // Recompute hash with actual content
+    const sha256 = crypto.createHash('sha256').update(actualContent).digest('hex');
 
     // Check for existing document with same URL and hash
     const canonicalUrl = new URL(body.url).href;
@@ -138,8 +185,8 @@ export async function ingestUrl(
     await blobService.uploadBlob(
       config.storage.containerNames.raw,
       blobName,
-      fetchResult.content,
-      fetchResult.contentType
+      actualContent,
+      actualContentType
     );
 
     // Create document record
@@ -152,7 +199,7 @@ export async function ingestUrl(
       sourceType: 'url',
       rawBlobPath,
       sha256,
-      contentType: fetchResult.contentType || 'application/octet-stream',
+      contentType: actualContentType,
       fetchedAt: new Date().toISOString(),
       etag: fetchResult.etag,
       lastModified: fetchResult.lastModified,
@@ -163,6 +210,64 @@ export async function ingestUrl(
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+
+    // Add version tracking fields if landing page was detected
+    if (isLandingPage && landingPageInfo) {
+      document.isLandingPage = true;
+      document.landingPageUrl = body.url;
+      document.downloadUrl = downloadUrl;
+
+      // Add version info
+      if (landingPageInfo.versionInfo) {
+        document.versionInfo = landingPageInfo.versionInfo;
+      }
+
+      // Add format info
+      if (landingPageInfo.downloadLinks.length > 0) {
+        document.formats = {};
+        for (const link of landingPageInfo.downloadLinks) {
+          document.formats[link.format] = {
+            url: link.url,
+            blobPath: isLandingPage && link.url === downloadUrl
+              ? rawBlobPath
+              : `${config.storage.containerNames.raw}/${documentId}/${link.format}`,
+            size: link.size,
+          };
+        }
+      }
+    }
+
+    // Search for existing versions and create version chain
+    if (document.versionInfo) {
+      try {
+        const existingVersions = await findExistingVersions(document.versionInfo, documentId);
+
+        if (existingVersions.length > 0) {
+          requestLogger.info('Found existing versions', {
+            count: existingVersions.length,
+            series: document.versionInfo.publicationSeries,
+          });
+
+          // Link to version chain
+          const latestExisting = existingVersions[0];
+          document.versionChain = {
+            previousVersionId: latestExisting.id,
+            relatedVersions: existingVersions.map(v => v.id),
+          };
+
+          // Update previous version to point to this one
+          await updateVersionChain(latestExisting.id, documentId, requestLogger);
+
+          requestLogger.info('Version chain created', {
+            newDocId: documentId,
+            previousVersionId: latestExisting.id,
+          });
+        }
+      } catch (error) {
+        requestLogger.warn('Failed to create version chain', { error });
+        // Continue anyway
+      }
+    }
 
     // Enable monitoring for policy documents
     if (body.docType === 'policy') {
@@ -210,6 +315,53 @@ export async function ingestUrl(
       status: 500,
       jsonBody: { error: 'Internal server error' },
     };
+  }
+}
+
+/**
+ * Find existing versions of a document series
+ */
+async function findExistingVersions(versionInfo: VersionInfo, excludeDocId: string): Promise<Document[]> {
+  const query = `
+    SELECT * FROM c
+    WHERE c.versionInfo.publicationSeries = @series
+    AND c.id != @excludeId
+    ORDER BY c.versionInfo.revision DESC, c.versionInfo.update DESC
+  `;
+
+  return await cosmosService.queryDocuments<Document>(
+    'documents',
+    query,
+    [
+      { name: '@series', value: versionInfo.publicationSeries },
+      { name: '@excludeId', value: excludeDocId },
+    ]
+  );
+}
+
+/**
+ * Update version chain to link previous version to new version
+ */
+async function updateVersionChain(previousDocId: string, nextDocId: string, logger: any): Promise<void> {
+  try {
+    const prevDoc = await cosmosService.getDocument<Document>('documents', previousDocId, previousDocId);
+
+    prevDoc.versionChain = prevDoc.versionChain || {};
+    prevDoc.versionChain.nextVersionId = nextDocId;
+
+    // If there are related versions, add the new one
+    if (prevDoc.versionChain.relatedVersions) {
+      prevDoc.versionChain.relatedVersions.push(nextDocId);
+    } else {
+      prevDoc.versionChain.relatedVersions = [nextDocId];
+    }
+
+    await cosmosService.updateDocument('documents', previousDocId, prevDoc, previousDocId);
+
+    logger.info('Updated version chain', { previousDocId, nextDocId });
+  } catch (error) {
+    logger.error('Failed to update version chain', { previousDocId, nextDocId, error });
+    throw error;
   }
 }
 

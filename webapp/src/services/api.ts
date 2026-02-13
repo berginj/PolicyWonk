@@ -15,6 +15,11 @@ class ApiClient {
     });
   }
 
+  async getDocument(documentId: string) {
+    const response = await this.client.get(`/documents/${documentId}`);
+    return response.data;
+  }
+
   async getDiff(diffId: string) {
     const response = await this.client.get(`/diffs/${diffId}`);
     return response.data;

@@ -39,6 +39,37 @@ export interface Document {
   errorMessage?: string;
   createdAt: string;
   updatedAt: string;
+
+  // Multi-version tracking fields
+  versionInfo?: {
+    publicationSeries: string;  // "SP 800-53"
+    revision: string;            // "5"
+    update: string;              // "1"
+    status: 'draft' | 'final' | 'superseded' | 'withdrawn';
+    publishedDate?: string;
+    supersededDate?: string;
+  };
+
+  versionChain?: {
+    previousVersionId?: string;  // Link to previous version
+    nextVersionId?: string;      // Link to next version
+    supersededBy?: string;       // Document ID that supersedes this one
+    relatedVersions?: string[];  // All versions in this series
+  };
+
+  // Multi-format support
+  formats?: {
+    pdf?: { url: string; blobPath: string; size?: string; };
+    docx?: { url: string; blobPath: string; };
+    html?: { url: string; blobPath: string; };
+    json?: { url: string; blobPath: string; };
+    xlsx?: { url: string; blobPath: string; };
+  };
+
+  // Smart monitoring (for landing pages)
+  landingPageUrl?: string;  // Monitor this URL for new versions
+  downloadUrl?: string;      // Actual document URL (may differ from sourceUrl)
+  isLandingPage?: boolean;   // True if sourceUrl was a landing page
 }
 
 export interface CreateDocumentInput {
