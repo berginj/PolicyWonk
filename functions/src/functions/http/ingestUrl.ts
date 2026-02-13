@@ -107,7 +107,6 @@ export async function ingestUrl(
     let landingPageInfo;
     let actualContent = fetchResult.content;
     let actualContentType = fetchResult.contentType || 'application/octet-stream';
-    let actualUrl = body.url;
     let isLandingPage = false;
     let downloadUrl: string | undefined;
 
@@ -131,7 +130,6 @@ export async function ingestUrl(
           if (docFetchResult) {
             actualContent = docFetchResult.content;
             actualContentType = docFetchResult.contentType || 'application/pdf';
-            actualUrl = bestLink.url;
             isLandingPage = true;
 
             requestLogger.info('Downloaded document from landing page', {
@@ -346,6 +344,11 @@ async function updateVersionChain(previousDocId: string, nextDocId: string, logg
   try {
     const prevDoc = await cosmosService.getDocument<Document>('documents', previousDocId, previousDocId);
 
+    if (!prevDoc) {
+      logger.warn('Previous document not found for version chain', { previousDocId });
+      return;
+    }
+
     prevDoc.versionChain = prevDoc.versionChain || {};
     prevDoc.versionChain.nextVersionId = nextDocId;
 
@@ -356,7 +359,7 @@ async function updateVersionChain(previousDocId: string, nextDocId: string, logg
       prevDoc.versionChain.relatedVersions = [nextDocId];
     }
 
-    await cosmosService.updateDocument('documents', previousDocId, prevDoc, previousDocId);
+    await cosmosService.updateDocument('documents', prevDoc.id, prevDoc.id, prevDoc);
 
     logger.info('Updated version chain', { previousDocId, nextDocId });
   } catch (error) {

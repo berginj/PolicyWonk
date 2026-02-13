@@ -82,6 +82,11 @@ export async function markDocumentAsSuperseded(
   try {
     const document = await cosmosService.getDocument<Document>('documents', documentId, documentId);
 
+    if (!document) {
+      logger.warn('Document not found for superseded marking', { documentId });
+      return;
+    }
+
     // Update version info
     if (!document.versionInfo) {
       document.versionInfo = {
@@ -110,7 +115,7 @@ export async function markDocumentAsSuperseded(
 
     document.updatedAt = new Date().toISOString();
 
-    await cosmosService.updateDocument('documents', documentId, document, documentId);
+    await cosmosService.updateDocument('documents', document.id, document.id, document);
 
     logger.info('Document marked as superseded', {
       documentId,
@@ -135,6 +140,11 @@ export async function monitorDocument(documentId: string): Promise<{
     logger.info('Monitoring document', { documentId });
 
     const document = await cosmosService.getDocument<Document>('documents', documentId, documentId);
+
+    if (!document) {
+      logger.warn('Document not found for monitoring', { documentId });
+      return { hasChanges: false, isDeprecated: false };
+    }
 
     // Check if monitoring is enabled
     if (!document.monitoringConfig?.enabled) {
@@ -169,7 +179,7 @@ export async function monitorDocument(documentId: string): Promise<{
     if (document.monitoringConfig) {
       const cadenceMs = getCadenceMilliseconds(document.monitoringConfig.cadence);
       document.monitoringConfig.nextCheckAt = new Date(Date.now() + cadenceMs).toISOString();
-      await cosmosService.updateDocument('documents', documentId, document, documentId);
+      await cosmosService.updateDocument('documents', document.id, document.id, document);
     }
 
     return { hasChanges: false, isDeprecated: false };
