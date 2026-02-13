@@ -23,10 +23,11 @@ Write-Host ""
 
 # Build TypeScript
 Write-Host "Building TypeScript..." -ForegroundColor Yellow
-Set-Location functions
+Push-Location functions
 npm run build
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Build failed!" -ForegroundColor Red
+    Pop-Location
     exit 1
 }
 Write-Host "✓ Build successful" -ForegroundColor Green
@@ -34,11 +35,14 @@ Write-Host ""
 
 # Deploy to Azure
 Write-Host "Deploying to Azure Function App: func-pwonk-v2..." -ForegroundColor Yellow
-func azure functionapp publish func-pwonk-v2
+Write-Host "Using Node.js runtime..." -ForegroundColor Gray
+func azure functionapp publish func-pwonk-v2 --typescript
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Deployment failed!" -ForegroundColor Red
+    Pop-Location
     exit 1
 }
+Pop-Location
 
 Write-Host ""
 Write-Host "================================================" -ForegroundColor Green
