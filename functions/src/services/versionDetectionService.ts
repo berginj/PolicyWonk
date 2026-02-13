@@ -35,15 +35,17 @@ export interface LandingPageInfo {
  */
 export function detectVersionFromUrl(url: string): VersionInfo | null {
   try {
-    // NIST URL pattern: /pubs/sp/(series1)/(series2)/r(revision)/upd(update)/(status)
-    const nistPattern = /\/pubs\/sp\/(\d+)\/(\d+)\/r(\d+)(?:\/upd(\d+))?(?:\/(draft|final))?/i;
+    // NIST URL pattern: /pubs/sp/(series1)/(series2)/(suffix?)/r(revision)/upd(update)/(status)
+    // Examples: /pubs/sp/800/53/r5/final or /pubs/sp/800/53/a/r5/final
+    const nistPattern = /\/pubs\/sp\/(\d+)\/(\d+)(?:\/([a-z]))?\/r(\d+)(?:\/upd(\d+))?(?:\/(draft|final))?/i;
     const match = url.match(nistPattern);
 
     if (match) {
-      const publicationSeries = `SP ${match[1]}-${match[2]}`;
-      const revision = match[3];
-      const update = match[4] || '0';
-      const status = match[5]?.toLowerCase() === 'draft' ? 'draft' : 'final';
+      const suffix = match[3] ? match[3].toUpperCase() : '';
+      const publicationSeries = `SP ${match[1]}-${match[2]}${suffix}`;
+      const revision = match[4];
+      const update = match[5] || '0';
+      const status = match[6]?.toLowerCase() === 'draft' ? 'draft' : 'final';
 
       logger.info('Version detected from URL', {
         url,
