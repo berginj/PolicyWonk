@@ -74,6 +74,24 @@ export default function Dashboard() {
     }
   }
 
+  async function handleDeletePolicy(policyId: string, policyTitle: string) {
+    if (!window.confirm(`Are you sure you want to delete "${policyTitle}"? This will remove all versions, diffs, and alerts associated with this policy.`)) {
+      return;
+    }
+
+    setDeleting(policyId);
+    try {
+      await api.deleteDocument(policyId);
+      // Remove from the list
+      setRecentPolicies(prev => prev.filter(p => p.id !== policyId));
+      setMonitoredCount(prev => prev - 1);
+    } catch (err: any) {
+      alert(`Failed to delete policy: ${err.response?.data?.error || err.message}`);
+    } finally {
+      setDeleting(null);
+    }
+  }
+
   if (loading) {
     return (
       <div className="dashboard">
