@@ -75,3 +75,4 @@ app.http('getDocument', {
   route: 'documents/{id}',
   handler: getDocument,
 });
+
