@@ -30,39 +30,62 @@ export async function getPolicies(
     const policies = await cosmosService.queryDocuments<Document>('documents', query);
 
     // If recent flag is set, also fetch latest diff for each policy
-    if (recent === 'true') {
-      const policiesWithDiffs = await Promise.all(
-        policies.map(async (policy) => {
-          try {
-            // Get the most recent diff for this policy
-            const diffQuery = `SELECT TOP 1 * FROM c WHERE c.policyId = @policyId ORDER BY c.computedAt DESC`;
-            const diffs = await cosmosService.queryDocuments<DiffRecord>(
-              'diffs',
-              diffQuery,
-              [{ name: '@policyId', value: policy.id }]
-            );
+    // Optimized: Single query instead of N+1 queries
+    if (recent === 'true' && policies.length > 0) {
+      try {
+        // Get policy IDs for batch query
+        const policyIds = policies.map(p => p.id);
 
-            return {
-              ...policy,
-              latestDiff: diffs[0] || null
-            };
-          } catch (error) {
-            context.log('Failed to fetch diff for policy', { policyId: policy.id, error });
-            return {
-              ...policy,
-              latestDiff: null
-            };
+        // Single query to fetch latest diffs for all policies
+        // Uses a subquery pattern to get the most recent diff per policy
+        const diffQuery = `
+          SELECT * FROM c
+          WHERE ARRAY_CONTAINS(@policyIds, c.policyId)
+          ORDER BY c.computedAt DESC
+        `;
+
+        const allDiffs = await cosmosService.queryDocuments<DiffRecord>(
+          'diffs',
+          diffQuery,
+          [{ name: '@policyIds', value: policyIds }]
+        );
+
+        // Group diffs by policyId and take the most recent one for each
+        const latestDiffsByPolicy = new Map<string, DiffRecord>();
+        for (const diff of allDiffs) {
+          if (!latestDiffsByPolicy.has(diff.policyId)) {
+            latestDiffsByPolicy.set(diff.policyId, diff);
           }
-        })
-      );
-
-      return {
-        status: 200,
-        jsonBody: {
-          policies: policiesWithDiffs,
-          total: policiesWithDiffs.length
         }
-      };
+
+        // Merge policies with their latest diffs
+        const policiesWithDiffs = policies.map(policy => ({
+          ...policy,
+          latestDiff: latestDiffsByPolicy.get(policy.id) || null
+        }));
+
+        return {
+          status: 200,
+          jsonBody: {
+            policies: policiesWithDiffs,
+            total: policiesWithDiffs.length
+          }
+        };
+      } catch (error) {
+        context.log('Failed to fetch diffs for policies', { error });
+        // Fall back to returning policies without diffs
+        const policiesWithDiffs = policies.map(policy => ({
+          ...policy,
+          latestDiff: null
+        }));
+        return {
+          status: 200,
+          jsonBody: {
+            policies: policiesWithDiffs,
+            total: policiesWithDiffs.length
+          }
+        };
+      }
     }
 
     return {

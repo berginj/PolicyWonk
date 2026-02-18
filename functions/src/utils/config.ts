@@ -29,6 +29,8 @@ export interface Config {
     processing: string;
     diff: string;
     alert: string;
+    ingest?: string;
+    alerts?: string;
   };
   monitoring: {
     schedule: string;
@@ -36,6 +38,11 @@ export interface Config {
   };
   keyVault: {
     name: string;
+  };
+  // Authentication configuration
+  auth: {
+    enabled: boolean;
+    bypassForTesting: boolean;
   };
 }
 
@@ -88,6 +95,12 @@ export function loadConfig(): Config {
     },
     keyVault: {
       name: getEnvOrThrow('KEY_VAULT_NAME'),
+    },
+    // Authentication configuration
+    // Set AUTH_ENABLED=true in production, AUTH_BYPASS_FOR_TESTING=true only in dev/test
+    auth: {
+      enabled: getEnvOrDefault('AUTH_ENABLED', 'false').toLowerCase() === 'true',
+      bypassForTesting: getEnvOrDefault('AUTH_BYPASS_FOR_TESTING', 'true').toLowerCase() === 'true',
     },
   };
 }

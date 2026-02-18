@@ -28,6 +28,12 @@ export interface SearchDocument {
   updatedAt: string;
 }
 
+// Escape OData filter string values to prevent injection attacks
+function escapeODataString(value: string): string {
+  // OData uses single quotes for strings; escape by doubling them
+  return value.replace(/'/g, "''");
+}
+
 class SearchService {
   private searchClient: SearchClient<SearchDocument> | null = null;
 
@@ -80,18 +86,18 @@ class SearchService {
         includeTotalCount: true,
       };
 
-      // Build filter
+      // Build filter with proper escaping to prevent OData injection
       const filters: string[] = [];
       if (query.docType) {
-        filters.push(`docType eq '${query.docType}'`);
+        filters.push(`docType eq '${escapeODataString(query.docType)}'`);
       }
       if (query.tags && query.tags.length > 0) {
-        const tagFilters = query.tags.map((t) => `tags/any(t: t eq '${t}')`);
+        const tagFilters = query.tags.map((t) => `tags/any(t: t eq '${escapeODataString(t)}')`);
         filters.push(`(${tagFilters.join(' or ')})`);
       }
       if (query.frameworks && query.frameworks.length > 0) {
         const frameworkFilters = query.frameworks.map(
-          (f) => `frameworks/any(f: f eq '${f}')`
+          (f) => `frameworks/any(f: f eq '${escapeODataString(f)}')`
         );
         filters.push(`(${frameworkFilters.join(' or ')})`);
       }

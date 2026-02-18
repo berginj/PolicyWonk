@@ -2,7 +2,7 @@
 
 import { ChangeType } from './diff';
 
-export type AlertType = 'new_document' | 'policy_update';
+export type AlertType = 'new_document' | 'policy_update' | 'deprecation';
 export type NotificationChannelType = 'email';
 
 export interface NotificationChannel {
@@ -47,7 +47,7 @@ export interface UpdateAlertInput {
 }
 
 export interface NotificationPayload {
-  type: 'new_document' | 'policy_update';
+  type: 'new_document' | 'policy_update' | 'deprecation';
   policyTitle?: string;
   sourceUrl?: string;
   severity?: ChangeType;
@@ -57,6 +57,9 @@ export interface NotificationPayload {
   diffLink?: string;
   impactedTags?: string[];
   timestamp: string;
+  // Deprecation-specific fields
+  deprecationNotice?: string;
+  newVersionUrl?: string;
 }
 
 export interface Notification {

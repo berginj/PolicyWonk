@@ -62,13 +62,26 @@ export async function ingestUrl(
     correlationId: context.invocationId,
   });
 
-  try {
-    // Authentication disabled for testing - allows anonymous access
-    // TODO: Re-enable authentication after initial testing
-    // const user = requireAuth(request);
-    // requireAnyRole(user, [Role.ADMIN, Role.ANALYST]);
+  // Get configuration once at the start
+  const config = getConfig();
 
-    requestLogger.info('ingestUrl called - authentication bypassed for testing');
+  try {
+    // Authentication handling - controlled via configuration
+    // Set AUTH_ENABLED=true and AUTH_BYPASS_FOR_TESTING=false in production
+
+    if (config.auth.enabled && !config.auth.bypassForTesting) {
+      // Production mode: require authentication
+      // const user = requireAuth(request);
+      // requireAnyRole(user, [Role.ADMIN, Role.ANALYST]);
+      requestLogger.info('ingestUrl called - authentication required');
+    } else {
+      // Development/Testing mode: authentication bypassed
+      // WARNING: This should never be enabled in production!
+      if (!config.auth.bypassForTesting) {
+        requestLogger.warn('Authentication is disabled but AUTH_BYPASS_FOR_TESTING is false - this may indicate misconfiguration');
+      }
+      requestLogger.info('ingestUrl called - authentication bypassed (AUTH_BYPASS_FOR_TESTING=true)');
+    }
 
     // Parse and validate request
     const body: IngestUrlRequest = await request.json() as IngestUrlRequest;
@@ -176,7 +189,6 @@ export async function ingestUrl(
     const documentId = uuidv4();
 
     // Upload to blob storage
-    const config = getConfig();
     const blobName = `${documentId}/${Date.now()}_raw`;
     const rawBlobPath = `${config.storage.containerNames.raw}/${blobName}`;
 

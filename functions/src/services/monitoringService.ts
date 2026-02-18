@@ -2,10 +2,14 @@
 // Handles periodic checking for document updates and deprecation
 
 import { Document } from '../types/document';
+import { NotificationPayload } from '../types/alert';
 import { fetchService } from './fetchService';
 import { cosmosService } from './cosmosService';
+import { queueService } from './queueService';
 import { detectDeprecation, extractNewVersionUrl } from './versionDetectionService';
 import { createLogger } from '../utils/logger';
+import { getConfig } from '../utils/config';
+import crypto from 'crypto';
 
 const logger = createLogger({ functionName: 'monitoringService' });
 
@@ -162,8 +166,13 @@ export async function monitorDocument(documentId: string): Promise<{
         deprecationStatus.deprecationNotice
       );
 
-      // TODO: Create alert for user
-      // TODO: Auto-ingest new version if newVersionUrl is provided
+      // Create deprecation alert notification
+      await createDeprecationAlert(document, deprecationStatus);
+
+      // Auto-ingest new version if URL is available
+      if (deprecationStatus.newVersionUrl) {
+        await triggerAutoIngest(document, deprecationStatus.newVersionUrl);
+      }
 
       return {
         hasChanges: true,
@@ -172,17 +181,38 @@ export async function monitorDocument(documentId: string): Promise<{
       };
     }
 
-    // TODO: Check for content changes (compare hash)
-    // This would involve fetching the document again and comparing
+    // Check for content changes (compare hash)
+    const contentChangeStatus = await checkForContentChanges(document);
 
-    // Update next check time
+    // Update next check time and content changes
     if (document.monitoringConfig) {
       const cadenceMs = getCadenceMilliseconds(document.monitoringConfig.cadence);
       document.monitoringConfig.nextCheckAt = new Date(Date.now() + cadenceMs).toISOString();
+
+      // If content changed, update the hash and trigger re-processing
+      if (contentChangeStatus.hasChanges && contentChangeStatus.newHash) {
+        logger.info('Content change detected, triggering re-ingestion', {
+          documentId: document.id,
+        });
+
+        // Trigger re-ingestion of the document
+        const config = getConfig();
+        await queueService.sendMessage(config.queues.ingest || 'document-ingestion', {
+          type: 'content_update',
+          url: document.downloadUrl || document.sourceUrl,
+          documentId: document.id,
+          previousHash: document.sha256,
+          newHash: contentChangeStatus.newHash,
+        });
+      }
+
       await cosmosService.updateDocument('documents', document.id, document.id, document);
     }
 
-    return { hasChanges: false, isDeprecated: false };
+    return {
+      hasChanges: contentChangeStatus.hasChanges,
+      isDeprecated: false,
+    };
   } catch (error) {
     logger.error('Error monitoring document', { documentId, error });
     return { hasChanges: false, isDeprecated: false };
@@ -200,5 +230,150 @@ function getCadenceMilliseconds(cadence: 'daily' | 'weekly' | 'monthly'): number
       return 7 * 24 * 60 * 60 * 1000;
     case 'monthly':
       return 30 * 24 * 60 * 60 * 1000;
+  }
+}
+
+/**
+ * Create a deprecation alert notification for users monitoring this document
+ */
+async function createDeprecationAlert(
+  document: Document,
+  deprecationStatus: DeprecationStatus
+): Promise<void> {
+  try {
+    const config = getConfig();
+
+    const notificationPayload: NotificationPayload = {
+      type: 'deprecation',
+      policyTitle: document.title,
+      sourceUrl: document.sourceUrl,
+      timestamp: new Date().toISOString(),
+      deprecationNotice: deprecationStatus.deprecationNotice,
+      newVersionUrl: deprecationStatus.newVersionUrl,
+      summaryBullets: [
+        `${document.title} has been superseded`,
+        deprecationStatus.newVersionUrl
+          ? `A new version is available at: ${deprecationStatus.newVersionUrl}`
+          : 'Please check for updated guidance',
+      ],
+    };
+
+    // Queue the notification for processing
+    await queueService.sendMessage(config.queues.alerts || config.queues.alert, {
+      type: 'deprecation_notification',
+      documentId: document.id,
+      payload: notificationPayload,
+    });
+
+    logger.info('Deprecation alert created', {
+      documentId: document.id,
+      title: document.title,
+    });
+  } catch (error) {
+    logger.error('Failed to create deprecation alert', {
+      documentId: document.id,
+      error,
+    });
+    // Don't throw - alert failure shouldn't stop monitoring
+  }
+}
+
+/**
+ * Trigger automatic ingestion of a new version when deprecation is detected
+ */
+async function triggerAutoIngest(
+  oldDocument: Document,
+  newVersionUrl: string
+): Promise<void> {
+  try {
+    const config = getConfig();
+
+    logger.info('Triggering auto-ingest for new version', {
+      oldDocumentId: oldDocument.id,
+      newVersionUrl,
+    });
+
+    // Queue the new document for ingestion
+    await queueService.sendMessage(config.queues.ingest || 'document-ingestion', {
+      type: 'auto_ingest',
+      url: newVersionUrl,
+      docType: oldDocument.docType,
+      previousVersionId: oldDocument.id,
+      metadata: {
+        title: `Updated: ${oldDocument.title}`,
+        autoIngestedFrom: oldDocument.id,
+        autoIngestedAt: new Date().toISOString(),
+      },
+    });
+
+    logger.info('Auto-ingest queued', {
+      oldDocumentId: oldDocument.id,
+      newVersionUrl,
+    });
+  } catch (error) {
+    logger.error('Failed to trigger auto-ingest', {
+      oldDocumentId: oldDocument.id,
+      newVersionUrl,
+      error,
+    });
+    // Don't throw - auto-ingest failure shouldn't stop monitoring
+  }
+}
+
+/**
+ * Check if document content has changed by comparing hashes
+ */
+async function checkForContentChanges(document: Document): Promise<{
+  hasChanges: boolean;
+  newHash?: string;
+}> {
+  try {
+    // Need a URL to check for changes
+    const urlToCheck = document.downloadUrl || document.sourceUrl;
+    if (!urlToCheck) {
+      return { hasChanges: false };
+    }
+
+    logger.info('Checking for content changes', {
+      documentId: document.id,
+      url: urlToCheck,
+    });
+
+    // Fetch the current content
+    const fetchResult = await fetchService.fetchWithRetry(urlToCheck);
+    if (!fetchResult) {
+      logger.warn('Failed to fetch content for change detection', {
+        documentId: document.id,
+      });
+      return { hasChanges: false };
+    }
+
+    // Calculate hash of new content
+    const newHash = crypto
+      .createHash('sha256')
+      .update(fetchResult.content)
+      .digest('hex');
+
+    // Compare with stored hash
+    if (document.sha256 && newHash !== document.sha256) {
+      logger.info('Content change detected', {
+        documentId: document.id,
+        oldHash: document.sha256?.substring(0, 16),
+        newHash: newHash.substring(0, 16),
+      });
+
+      return {
+        hasChanges: true,
+        newHash,
+      };
+    }
+
+    return { hasChanges: false };
+  } catch (error) {
+    logger.error('Error checking for content changes', {
+      documentId: document.id,
+      error,
+    });
+    return { hasChanges: false };
   }
 }

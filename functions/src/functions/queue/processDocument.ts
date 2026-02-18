@@ -19,15 +19,46 @@ export async function processDocument(
   queueItem: unknown,
   context: InvocationContext
 ): Promise<void> {
-  const job = JSON.parse(Buffer.from(queueItem as string, 'base64').toString('utf-8')) as ProcessingJob;
-  const logger = createLogger({
+  // Initialize logger for early errors
+  let logger = createLogger({
+    functionName: 'processDocument',
+    correlationId: context.invocationId,
+  });
+
+  // Parse and validate queue message first
+  let parsedJob: ProcessingJob | undefined;
+
+  try {
+    if (typeof queueItem !== 'string') {
+      throw new Error(`Invalid queue message type: expected string, got ${typeof queueItem}`);
+    }
+
+    const decoded = Buffer.from(queueItem, 'base64').toString('utf-8');
+    const parsed = JSON.parse(decoded);
+
+    if (!parsed.documentId || !parsed.rawBlobPath || !parsed.contentType) {
+      throw new Error(`Invalid job message: missing required fields. Got: ${Object.keys(parsed).join(', ')}`);
+    }
+
+    parsedJob = parsed as ProcessingJob;
+  } catch (parseError) {
+    const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
+    logger.error('Failed to parse queue message', { error: errorMessage });
+    throw parseError;
+  }
+
+  // Now we have a valid job - use it with type safety
+  const job = parsedJob;
+
+  // Update logger with document context
+  logger = createLogger({
     functionName: 'processDocument',
     correlationId: context.invocationId,
     documentId: job.documentId,
   });
 
   try {
-    logger.info('Processing document', { documentId: job.documentId });
+    logger.info('Processing document', { documentId: job.documentId, contentType: job.contentType });
 
     // Update status
     await cosmosService.updateDocument<Document>(
@@ -140,17 +171,48 @@ export async function processDocument(
 
     logger.info('Document processing completed', { documentId: job.documentId });
   } catch (error) {
-    logger.error('Document processing failed', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
 
-    await cosmosService.updateDocument<Document>(
-      'documents',
-      job.documentId,
-      job.documentId,
-      {
-        status: 'failed',
-        errorMessage: (error as Error).message,
-      }
-    );
+    // Classify error for better debugging
+    let errorCategory = 'unknown';
+    if (errorMessage.includes('Failed to download') || errorMessage.includes('blob')) {
+      errorCategory = 'storage_error';
+    } else if (errorMessage.includes('extract') || errorMessage.includes('Document Intelligence')) {
+      errorCategory = 'extraction_error';
+    } else if (errorMessage.includes('embed') || errorMessage.includes('OpenAI')) {
+      errorCategory = 'ai_error';
+    } else if (errorMessage.includes('index') || errorMessage.includes('search')) {
+      errorCategory = 'search_error';
+    } else if (errorMessage.includes('Cosmos') || errorMessage.includes('database')) {
+      errorCategory = 'database_error';
+    }
+
+    logger.error('Document processing failed', {
+      documentId: job.documentId,
+      errorCategory,
+      errorMessage,
+      errorStack,
+    });
+
+    // Update document status to failed
+    try {
+      await cosmosService.updateDocument<Document>(
+        'documents',
+        job.documentId,
+        job.documentId,
+        {
+          status: 'failed',
+          errorMessage: `[${errorCategory}] ${errorMessage}`,
+        }
+      );
+    } catch (updateError) {
+      logger.error('Failed to update document status after processing error', {
+        documentId: job.documentId,
+        originalError: errorMessage,
+        updateError: updateError instanceof Error ? updateError.message : String(updateError),
+      });
+    }
 
     throw error;
   }
