@@ -3,14 +3,18 @@
   "logging": {
     "applicationInsights": {
       "samplingSettings": {
-        "isEnabled": true,
-        "maxTelemetryItemsPerSecond": 20
-      }
+        "isEnabled": false,
+        "maxTelemetryItemsPerSecond": 100
+      },
+      "enableLiveMetrics": true,
+      "enableDependencyTracking": true,
+      "enablePerformanceCountersCollection": true
     },
     "logLevel": {
       "default": "Information",
       "Function": "Information",
-      "Host.Results": "Information"
+      "Host.Results": "Information",
+      "Host.Aggregator": "Information"
     }
   },
   "extensionBundle": {
