@@ -69,3 +69,175 @@ export function validateArray(
     );
   }
 }
+
+/**
+ * Validate and clamp a numeric limit parameter
+ * Prevents SQL injection and ensures reasonable bounds
+ */
+export function validateLimit(
+  value: string | null,
+  defaultValue: number = 20,
+  maxValue: number = 100
+): number {
+  if (!value) {
+    return defaultValue;
+  }
+
+  const parsed = parseInt(value, 10);
+
+  // Check for NaN or non-integer values
+  if (isNaN(parsed) || !Number.isInteger(parsed)) {
+    return defaultValue;
+  }
+
+  // Clamp to valid range
+  if (parsed < 1) {
+    return 1;
+  }
+
+  if (parsed > maxValue) {
+    return maxValue;
+  }
+
+  return parsed;
+}
+
+/**
+ * Validate and clamp a numeric offset/skip parameter
+ */
+export function validateOffset(
+  value: string | null,
+  defaultValue: number = 0,
+  maxValue: number = 10000
+): number {
+  if (!value) {
+    return defaultValue;
+  }
+
+  const parsed = parseInt(value, 10);
+
+  if (isNaN(parsed) || !Number.isInteger(parsed)) {
+    return defaultValue;
+  }
+
+  if (parsed < 0) {
+    return 0;
+  }
+
+  if (parsed > maxValue) {
+    return maxValue;
+  }
+
+  return parsed;
+}
+
+/**
+ * Validate a document ID (alphanumeric with hyphens)
+ */
+export function validateDocumentId(id: string | null | undefined): string | null {
+  if (!id) {
+    return null;
+  }
+
+  // Allow alphanumeric, hyphens, and underscores
+  const sanitized = id.trim();
+  if (!/^[a-zA-Z0-9_-]+$/.test(sanitized)) {
+    return null;
+  }
+
+  // Reasonable max length
+  if (sanitized.length > 128) {
+    return null;
+  }
+
+  return sanitized;
+}
+
+/**
+ * Validate URL and return sanitized URL or null
+ */
+export function validateUrlSafe(url: string | null | undefined): string | null {
+  if (!url) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(url.trim());
+
+    // Only allow http and https protocols
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return null;
+    }
+
+    return parsed.href;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Escape HTML entities to prevent XSS
+ */
+export function escapeHtml(unsafe: string): string {
+  return unsafe
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+/**
+ * Type guard for ProcessingJob queue messages
+ */
+export interface ProcessingJobMessage {
+  documentId: string;
+  rawBlobPath: string;
+  contentType: string;
+  docType?: string;
+  isUpdate?: boolean;
+  versionId?: string;
+}
+
+export function isProcessingJobMessage(obj: unknown): obj is ProcessingJobMessage {
+  if (typeof obj !== 'object' || obj === null) {
+    return false;
+  }
+
+  const candidate = obj as Record<string, unknown>;
+
+  return (
+    typeof candidate.documentId === 'string' &&
+    candidate.documentId.length > 0 &&
+    typeof candidate.rawBlobPath === 'string' &&
+    candidate.rawBlobPath.length > 0 &&
+    typeof candidate.contentType === 'string' &&
+    candidate.contentType.length > 0
+  );
+}
+
+/**
+ * Type guard for DiffJob queue messages
+ */
+export interface DiffJobMessage {
+  policyId: string;
+  fromVersionId: string;
+  toVersionId: string;
+}
+
+export function isDiffJobMessage(obj: unknown): obj is DiffJobMessage {
+  if (typeof obj !== 'object' || obj === null) {
+    return false;
+  }
+
+  const candidate = obj as Record<string, unknown>;
+
+  return (
+    typeof candidate.policyId === 'string' &&
+    candidate.policyId.length > 0 &&
+    typeof candidate.fromVersionId === 'string' &&
+    candidate.fromVersionId.length > 0 &&
+    typeof candidate.toVersionId === 'string' &&
+    candidate.toVersionId.length > 0
+  );
+}

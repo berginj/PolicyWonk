@@ -1,6 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { cosmosService } from '../../services/cosmosService';
 import { isAppError } from '../../utils/errors';
+import { validateLimit } from '../../utils/validation';
 import { Alert } from '../../types/alert';
 
 export async function getAlerts(
@@ -12,7 +13,7 @@ export async function getAlerts(
   try {
     const url = new URL(request.url);
     const active = url.searchParams.get('active');
-    const limit = parseInt(url.searchParams.get('limit') || '20');
+    const limit = validateLimit(url.searchParams.get('limit'), 20, 100);
 
     let query = 'SELECT * FROM c WHERE c.alertType != null';
 
@@ -21,11 +22,15 @@ export async function getAlerts(
     }
 
     query += ' ORDER BY c.updatedAt DESC';
-    query += ` OFFSET 0 LIMIT ${limit}`;
 
-    context.log('Executing query', { query });
+    context.log('Executing query', { query, limit });
 
-    const alerts = await cosmosService.queryDocuments<Alert>('alerts', query);
+    // Use parameterized query for limit to prevent injection
+    const alerts = await cosmosService.queryDocuments<Alert>(
+      'alerts',
+      query + ' OFFSET 0 LIMIT @limit',
+      [{ name: '@limit', value: limit }]
+    );
 
     return {
       status: 200,

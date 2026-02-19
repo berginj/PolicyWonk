@@ -45,54 +45,54 @@ export async function deleteDocument(
 
     const document = documents[0];
 
-    // Delete from Cosmos DB (document, versions, diffs, alerts, notifications)
-    let versionsCount = 0;
-    let diffsCount = 0;
-    let alertsCount = 0;
+    // Delete from Cosmos DB (document, versions, diffs, alerts)
+    // Using batch delete for better performance
+    let versionsResult = { deleted: 0, failed: 0 };
+    let diffsResult = { deleted: 0, failed: 0 };
+    let alertsResult = { deleted: 0, failed: 0 };
 
     try {
-      // Delete the main document
+      // Delete the main document first
       await cosmosService.deleteDocument('documents', documentId, documentId);
       requestLogger.info('Document deleted from Cosmos DB', { documentId });
 
-      // Delete all versions for this document
-      const versions = await cosmosService.queryDocuments<any>(
-        'versions',
-        'SELECT * FROM c WHERE c.policyId = @policyId',
-        [{ name: '@policyId', value: documentId }]
-      );
+      // Delete all related data in parallel using batch delete
+      const [versionsRes, diffsRes, alertsRes] = await Promise.all([
+        // Delete all versions for this document
+        cosmosService.deleteByQuery(
+          'versions',
+          'SELECT * FROM c WHERE c.policyId = @policyId',
+          [{ name: '@policyId', value: documentId }],
+          (doc) => doc.policyId as string,
+          10 // concurrency
+        ),
+        // Delete all diffs for this document
+        cosmosService.deleteByQuery(
+          'diffs',
+          'SELECT * FROM c WHERE c.policyId = @policyId',
+          [{ name: '@policyId', value: documentId }],
+          (doc) => doc.policyId as string,
+          10
+        ),
+        // Delete alerts related to this document
+        cosmosService.deleteByQuery(
+          'alerts',
+          'SELECT * FROM c WHERE c.policyId = @policyId',
+          [{ name: '@policyId', value: documentId }],
+          (doc) => doc.userId as string,
+          10
+        ),
+      ]);
 
-      for (const version of versions) {
-        await cosmosService.deleteDocument('versions', version.id, version.policyId);
-      }
-      versionsCount = versions.length;
-      requestLogger.info('Versions deleted', { count: versionsCount });
+      versionsResult = versionsRes;
+      diffsResult = diffsRes;
+      alertsResult = alertsRes;
 
-      // Delete all diffs for this document
-      const diffs = await cosmosService.queryDocuments<any>(
-        'diffs',
-        'SELECT * FROM c WHERE c.policyId = @policyId',
-        [{ name: '@policyId', value: documentId }]
-      );
-
-      for (const diff of diffs) {
-        await cosmosService.deleteDocument('diffs', diff.id, diff.policyId);
-      }
-      diffsCount = diffs.length;
-      requestLogger.info('Diffs deleted', { count: diffsCount });
-
-      // Delete alerts related to this document
-      const alerts = await cosmosService.queryDocuments<any>(
-        'alerts',
-        'SELECT * FROM c WHERE c.policyId = @policyId',
-        [{ name: '@policyId', value: documentId }]
-      );
-
-      for (const alert of alerts) {
-        await cosmosService.deleteDocument('alerts', alert.id, alert.userId);
-      }
-      alertsCount = alerts.length;
-      requestLogger.info('Alerts deleted', { count: alertsCount });
+      requestLogger.info('Related data deleted', {
+        versions: versionsResult,
+        diffs: diffsResult,
+        alerts: alertsResult,
+      });
 
     } catch (cosmosError: any) {
       requestLogger.error('Failed to delete from Cosmos DB', cosmosError);
@@ -124,10 +124,15 @@ export async function deleteDocument(
         documentId,
         deletedItems: {
           document: 1,
-          versions: versionsCount,
-          diffs: diffsCount,
-          alerts: alertsCount
-        }
+          versions: versionsResult.deleted,
+          diffs: diffsResult.deleted,
+          alerts: alertsResult.deleted,
+        },
+        failedDeletes: {
+          versions: versionsResult.failed,
+          diffs: diffsResult.failed,
+          alerts: alertsResult.failed,
+        },
       }
     };
 

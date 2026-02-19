@@ -14,13 +14,41 @@ import { DiffRecord } from '../../types/diff';
 import { Document } from '../../types/document';
 import { createLogger } from '../../utils/logger';
 import { getConfig } from '../../utils/config';
+import { isDiffJobMessage } from '../../utils/validation';
 
 export async function computeDiff(
   queueItem: unknown,
   context: InvocationContext
 ): Promise<void> {
-  const job = JSON.parse(Buffer.from(queueItem as string, 'base64').toString('utf-8')) as DiffJob;
-  const logger = createLogger({
+  // Initialize logger for early errors
+  let logger = createLogger({
+    functionName: 'computeDiff',
+    correlationId: context.invocationId,
+  });
+
+  // Parse and validate queue message
+  let job: DiffJob;
+  try {
+    if (typeof queueItem !== 'string') {
+      throw new Error(`Invalid queue message type: expected string, got ${typeof queueItem}`);
+    }
+
+    const decoded = Buffer.from(queueItem, 'base64').toString('utf-8');
+    const parsed = JSON.parse(decoded);
+
+    if (!isDiffJobMessage(parsed)) {
+      throw new Error(`Invalid diff job message: missing required fields (policyId, fromVersionId, toVersionId)`);
+    }
+
+    job = parsed as DiffJob;
+  } catch (parseError) {
+    const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
+    logger.error('Failed to parse queue message', { error: errorMessage });
+    throw parseError;
+  }
+
+  // Update logger with job context
+  logger = createLogger({
     functionName: 'computeDiff',
     correlationId: context.invocationId,
     policyId: job.policyId,

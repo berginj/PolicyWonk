@@ -6,6 +6,7 @@ import { SecretClient } from '@azure/keyvault-secrets';
 import { getConfig } from '../utils/config';
 import { logger } from '../utils/logger';
 import { ExternalServiceError } from '../utils/errors';
+import { escapeHtml, validateUrlSafe } from '../utils/validation';
 import { NotificationPayload } from '../types/alert';
 
 class NotificationService {
@@ -65,7 +66,13 @@ class NotificationService {
     to: string,
     payload: NotificationPayload
   ): Promise<void> {
-    const subject = `Policy Update Alert: ${payload.policyTitle} (${payload.severity})`;
+    // Escape all user-provided content to prevent XSS
+    const safeTitle = escapeHtml(payload.policyTitle || 'Untitled Policy');
+    const safeSeverity = escapeHtml(payload.severity || 'UNKNOWN');
+    const safeSourceUrl = validateUrlSafe(payload.sourceUrl) || '#';
+    const safeDiffLink = validateUrlSafe(payload.diffLink) || '#';
+
+    const subject = `Policy Update Alert: ${safeTitle} (${safeSeverity})`;
 
     const html = `
       <!DOCTYPE html>
@@ -87,21 +94,21 @@ class NotificationService {
         <div class="container">
           <div class="header">
             <h2>Policy Update Detected</h2>
-            <p>${payload.policyTitle}</p>
+            <p>${safeTitle}</p>
           </div>
           <div class="content">
-            <p><strong>Severity:</strong> <span class="badge">${payload.severity}</span></p>
-            <p><strong>Change Score:</strong> ${payload.changeScore}/100</p>
-            <p><strong>Source:</strong> <a href="${payload.sourceUrl}">${payload.sourceUrl}</a></p>
+            <p><strong>Severity:</strong> <span class="badge">${safeSeverity}</span></p>
+            <p><strong>Change Score:</strong> ${typeof payload.changeScore === 'number' ? payload.changeScore : 0}/100</p>
+            <p><strong>Source:</strong> <a href="${safeSourceUrl}">${escapeHtml(payload.sourceUrl || 'N/A')}</a></p>
 
             ${payload.impactedTags && payload.impactedTags.length > 0 ? `
-              <p><strong>Impacted Tags:</strong> ${payload.impactedTags.join(', ')}</p>
+              <p><strong>Impacted Tags:</strong> ${payload.impactedTags.map(tag => escapeHtml(tag)).join(', ')}</p>
             ` : ''}
 
             <div class="summary">
               <h3>Summary of Changes</h3>
               <ul>
-                ${payload.summaryBullets?.map((bullet) => `<li>${bullet}</li>`).join('') || '<li>No summary available</li>'}
+                ${payload.summaryBullets?.map((bullet) => `<li>${escapeHtml(bullet)}</li>`).join('') || '<li>No summary available</li>'}
               </ul>
             </div>
 
@@ -109,16 +116,16 @@ class NotificationService {
               <h3>Evidence Snippets</h3>
               ${payload.evidenceSnippets.map((snippet) => `
                 <div class="evidence">
-                  <p><strong>Before:</strong> ${snippet.before}</p>
-                  <p><strong>After:</strong> ${snippet.after}</p>
+                  <p><strong>Before:</strong> ${escapeHtml(snippet.before)}</p>
+                  <p><strong>After:</strong> ${escapeHtml(snippet.after)}</p>
                 </div>
               `).join('')}
             ` : ''}
 
-            <a href="${payload.diffLink}" class="button">View Full Diff</a>
+            <a href="${safeDiffLink}" class="button">View Full Diff</a>
 
             <p style="margin-top: 20px; font-size: 12px; color: #666;">
-              Timestamp: ${new Date(payload.timestamp).toLocaleString()}
+              Timestamp: ${escapeHtml(new Date(payload.timestamp).toLocaleString())}
             </p>
           </div>
         </div>

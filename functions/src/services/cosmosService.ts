@@ -127,6 +127,89 @@ class CosmosService {
       throw new ExternalServiceError('CosmosDB', error as Error);
     }
   }
+
+  /**
+   * Delete multiple documents in parallel with controlled concurrency
+   * Returns the count of successfully deleted documents
+   */
+  async deleteDocumentsBatch(
+    containerName: string,
+    documents: Array<{ id: string; partitionKey: string }>,
+    concurrency: number = 10
+  ): Promise<{ deleted: number; failed: number }> {
+    if (documents.length === 0) {
+      return { deleted: 0, failed: 0 };
+    }
+
+    const container = await this.getContainer(containerName);
+    let deleted = 0;
+    let failed = 0;
+
+    // Process in batches with controlled concurrency
+    for (let i = 0; i < documents.length; i += concurrency) {
+      const batch = documents.slice(i, i + concurrency);
+      const results = await Promise.allSettled(
+        batch.map(({ id, partitionKey }) =>
+          container.item(id, partitionKey).delete()
+        )
+      );
+
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          deleted++;
+        } else {
+          failed++;
+          logger.warn(`Failed to delete document in batch from ${containerName}`, {
+            error: result.reason?.message,
+          });
+        }
+      }
+    }
+
+    return { deleted, failed };
+  }
+
+  /**
+   * Query and delete all documents matching a query
+   * More efficient than querying then deleting separately
+   */
+  async deleteByQuery(
+    containerName: string,
+    query: string,
+    parameters: Array<{ name: string; value: unknown }>,
+    getPartitionKey: (doc: Record<string, unknown>) => string,
+    concurrency: number = 10
+  ): Promise<{ deleted: number; failed: number }> {
+    try {
+      // Query for all matching documents (only get id for efficiency)
+      const documents = await this.queryDocuments<{ id: string }>(
+        containerName,
+        query.replace('SELECT *', 'SELECT c.id'),
+        parameters
+      );
+
+      if (documents.length === 0) {
+        return { deleted: 0, failed: 0 };
+      }
+
+      // Also need the partition key, so query full docs
+      const fullDocs = await this.queryDocuments<Record<string, unknown>>(
+        containerName,
+        query,
+        parameters
+      );
+
+      const docsToDelete = fullDocs.map((doc) => ({
+        id: doc.id as string,
+        partitionKey: getPartitionKey(doc),
+      }));
+
+      return await this.deleteDocumentsBatch(containerName, docsToDelete, concurrency);
+    } catch (error) {
+      logger.error(`Failed to delete by query from ${containerName}`, error);
+      throw new ExternalServiceError('CosmosDB', error as Error);
+    }
+  }
 }
 
 export const cosmosService = new CosmosService();

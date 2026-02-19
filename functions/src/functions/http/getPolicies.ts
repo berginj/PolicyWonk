@@ -1,6 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { cosmosService } from '../../services/cosmosService';
 import { isAppError } from '../../utils/errors';
+import { validateLimit } from '../../utils/validation';
 import { Document } from '../../types/document';
 import { DiffRecord } from '../../types/diff';
 
@@ -14,20 +15,24 @@ export async function getPolicies(
     const url = new URL(request.url);
     const monitored = url.searchParams.get('monitored');
     const recent = url.searchParams.get('recent');
-    const limit = parseInt(url.searchParams.get('limit') || '10');
+    const limit = validateLimit(url.searchParams.get('limit'), 10, 100);
 
-    let query = 'SELECT * FROM c WHERE c.docType = "policy"';
+    let query = 'SELECT * FROM c WHERE c.docType = @docType';
+    const params: Array<{ name: string; value: unknown }> = [
+      { name: '@docType', value: 'policy' },
+      { name: '@limit', value: limit },
+    ];
 
     if (monitored === 'true') {
       query += ' AND c.monitoringConfig.enabled = true';
     }
 
     query += ' ORDER BY c.updatedAt DESC';
-    query += ` OFFSET 0 LIMIT ${limit}`;
+    query += ' OFFSET 0 LIMIT @limit';
 
-    context.log('Executing query', { query });
+    context.log('Executing query', { query, limit });
 
-    const policies = await cosmosService.queryDocuments<Document>('documents', query);
+    const policies = await cosmosService.queryDocuments<Document>('documents', query, params);
 
     // If recent flag is set, also fetch latest diff for each policy
     // Optimized: Single query instead of N+1 queries
