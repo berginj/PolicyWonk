@@ -4,7 +4,7 @@ import { app, InvocationContext } from '@azure/functions';
 import { v4 as uuidv4 } from 'uuid';
 import { cosmosService } from '../../services/cosmosService';
 import { blobService } from '../../services/blobService';
-import { queueService } from '../../services/queueService';
+import { queueService, decodeQueueMessage } from '../../services/queueService';
 import { diffComputer } from '../../diff/diffComputer';
 import { changeClassifier } from '../../diff/changeClassifier';
 import { changeExplainer } from '../../diff/changeExplainer';
@@ -29,18 +29,13 @@ export async function computeDiff(
   // Parse and validate queue message
   let job: DiffJob;
   try {
-    if (typeof queueItem !== 'string') {
-      throw new Error(`Invalid queue message type: expected string, got ${typeof queueItem}`);
-    }
-
-    const decoded = Buffer.from(queueItem, 'base64').toString('utf-8');
-    const parsed = JSON.parse(decoded);
+    const parsed = decodeQueueMessage<DiffJob>(queueItem);
 
     if (!isDiffJobMessage(parsed)) {
       throw new Error(`Invalid diff job message: missing required fields (policyId, fromVersionId, toVersionId)`);
     }
 
-    job = parsed as DiffJob;
+    job = parsed;
   } catch (parseError) {
     const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
     logger.error('Failed to parse queue message', { error: errorMessage });
@@ -60,6 +55,25 @@ export async function computeDiff(
       toVersionId: job.toVersionId,
     });
 
+    // Idempotency check: Skip if diff already exists for this version pair
+    const existingDiffs = await cosmosService.queryDocuments<DiffRecord>(
+      'diffs',
+      'SELECT * FROM c WHERE c.policyId = @policyId AND c.fromVersionId = @fromVersionId AND c.toVersionId = @toVersionId',
+      [
+        { name: '@policyId', value: job.policyId },
+        { name: '@fromVersionId', value: job.fromVersionId },
+        { name: '@toVersionId', value: job.toVersionId },
+      ]
+    );
+
+    if (existingDiffs.length > 0) {
+      logger.info('Diff already exists for this version pair, skipping', {
+        diffId: existingDiffs[0].diffId,
+        policyId: job.policyId,
+      });
+      return;
+    }
+
     const config = getConfig();
 
     // Get versions
@@ -75,7 +89,15 @@ export async function computeDiff(
     );
 
     if (!fromVersion || !toVersion) {
-      throw new Error('Version not found');
+      throw new Error(`Version not found: fromVersion=${!!fromVersion}, toVersion=${!!toVersion}`);
+    }
+
+    // Validate extracted text paths exist
+    if (!fromVersion.extractedTextBlobPath) {
+      throw new Error(`From version ${job.fromVersionId} has no extracted text (processing may have failed)`);
+    }
+    if (!toVersion.extractedTextBlobPath) {
+      throw new Error(`To version ${job.toVersionId} has no extracted text (processing may have failed)`);
     }
 
     // Get extracted text for both versions

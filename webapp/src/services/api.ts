@@ -2,12 +2,15 @@
 
 import axios, { AxiosInstance } from 'axios';
 
+// Get API URL from environment variable, with fallback for development
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
 class ApiClient {
   private client: AxiosInstance;
 
   constructor() {
     this.client = axios.create({
-      baseURL: 'https://func-pwonk-v2.azurewebsites.net/api',
+      baseURL: API_BASE_URL,
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',

@@ -28,8 +28,11 @@ export interface SearchDocument {
   updatedAt: string;
 }
 
-// Escape OData filter string values to prevent injection attacks
-function escapeODataString(value: string): string {
+/**
+ * Escape OData filter string values to prevent injection attacks
+ * Exported for testing
+ */
+export function escapeODataString(value: string): string {
   // OData uses single quotes for strings; escape by doubling them
   return value.replace(/'/g, "''");
 }

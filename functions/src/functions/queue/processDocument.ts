@@ -3,7 +3,7 @@
 import { app, InvocationContext } from '@azure/functions';
 import { cosmosService } from '../../services/cosmosService';
 import { blobService } from '../../services/blobService';
-import { queueService } from '../../services/queueService';
+import { queueService, decodeQueueMessage } from '../../services/queueService';
 import { documentIntelligenceService } from '../../services/documentIntelligenceService';
 import { openaiService } from '../../services/openaiService';
 import { searchService } from '../../services/searchService';
@@ -25,30 +25,22 @@ export async function processDocument(
     correlationId: context.invocationId,
   });
 
-  // Parse and validate queue message first
-  let parsedJob: ProcessingJob | undefined;
+  // Parse and validate queue message
+  let job: ProcessingJob;
 
   try {
-    if (typeof queueItem !== 'string') {
-      throw new Error(`Invalid queue message type: expected string, got ${typeof queueItem}`);
-    }
-
-    const decoded = Buffer.from(queueItem, 'base64').toString('utf-8');
-    const parsed = JSON.parse(decoded);
+    const parsed = decodeQueueMessage<ProcessingJob>(queueItem);
 
     if (!parsed.documentId || !parsed.rawBlobPath || !parsed.contentType) {
       throw new Error(`Invalid job message: missing required fields. Got: ${Object.keys(parsed).join(', ')}`);
     }
 
-    parsedJob = parsed as ProcessingJob;
+    job = parsed;
   } catch (parseError) {
     const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
     logger.error('Failed to parse queue message', { error: errorMessage });
     throw parseError;
   }
-
-  // Now we have a valid job - use it with type safety
-  const job = parsedJob;
 
   // Update logger with document context
   logger = createLogger({
@@ -58,9 +50,43 @@ export async function processDocument(
   });
 
   try {
+    // Idempotency check: Skip if document is already completed or currently processing
+    const existingDoc = await cosmosService.getDocument<Document>(
+      'documents',
+      job.documentId,
+      job.documentId
+    );
+
+    if (!existingDoc) {
+      logger.warn('Document not found, skipping processing', { documentId: job.documentId });
+      return;
+    }
+
+    if (existingDoc.status === 'completed') {
+      logger.info('Document already completed, skipping', { documentId: job.documentId });
+      return;
+    }
+
+    // Check if already being processed by another instance
+    // (within 5 minutes to handle stale processing states)
+    if (existingDoc.status === 'processing') {
+      const updatedAt = new Date(existingDoc.updatedAt).getTime();
+      const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+
+      if (updatedAt > fiveMinutesAgo) {
+        logger.info('Document already being processed, skipping', {
+          documentId: job.documentId,
+          updatedAt: existingDoc.updatedAt,
+        });
+        return;
+      }
+      // Processing state is stale, continue with processing
+      logger.warn('Stale processing state detected, retrying', { documentId: job.documentId });
+    }
+
     logger.info('Processing document', { documentId: job.documentId, contentType: job.contentType });
 
-    // Update status
+    // Update status to processing
     await cosmosService.updateDocument<Document>(
       'documents',
       job.documentId,
@@ -129,7 +155,7 @@ export async function processDocument(
     );
 
     // Generate tags using LLM
-    const tags = await generateTags(normalizedText.substring(0, 2000));
+    const tags = await generateTags(normalizedText.substring(0, 2000), logger);
 
     // Index in search
     await searchService.indexDocument({
@@ -253,7 +279,10 @@ function chunkText(
   return chunks;
 }
 
-async function generateTags(text: string): Promise<Array<{ tag: string; confidence: number; evidence: string }>> {
+async function generateTags(
+  text: string,
+  requestLogger: ReturnType<typeof createLogger>
+): Promise<Array<{ tag: string; confidence: number; evidence: string }>> {
   const prompt = [
     {
       role: 'system',
@@ -267,8 +296,22 @@ async function generateTags(text: string): Promise<Array<{ tag: string; confiden
 
   try {
     const result = await openaiService.chatWithJson<{ tags: Array<{ tag: string; confidence: number; evidence: string }> }>(prompt);
-    return result.tags || [];
-  } catch {
+
+    if (!result.tags || !Array.isArray(result.tags)) {
+      requestLogger.warn('Tag generation returned invalid format', { result });
+      return [];
+    }
+
+    requestLogger.info('Generated tags successfully', { tagCount: result.tags.length });
+    return result.tags;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    requestLogger.error('Tag generation failed', {
+      error: errorMessage,
+      textLength: text.length,
+    });
+    // Return empty array to allow document processing to continue
+    // The document will be marked as completed but without tags
     return [];
   }
 }

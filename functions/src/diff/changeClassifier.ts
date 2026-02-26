@@ -1,12 +1,23 @@
 // Change classification and scoring with noise profile support
 
+import crypto from 'crypto';
 import { DiffSummary, ChangeType } from '../types/diff';
 import { Section } from '../types/section';
 import { cosmosService } from '../services/cosmosService';
 import { openaiService } from '../services/openaiService';
 import { logger } from '../utils/logger';
 
+// Constants for tuning
+const MINOR_THRESHOLD_DEFAULT = 15;
+const MODERATE_THRESHOLD_DEFAULT = 40;
+const MAX_HISTORY_SIZE = 20;
+const NOISY_SOURCE_RATIO = 0.7;
+const MIN_CHANGES_FOR_ADJUSTMENT = 5;
+const MAX_MINOR_THRESHOLD = 25;
+
 interface NoiseProfile {
+  id: string; // Hash of sourceUrl for deterministic ID
+  type: 'noise_profile';
   sourceUrl: string;
   historicalChanges: Array<{
     changeScore: number;
@@ -15,14 +26,18 @@ interface NoiseProfile {
   }>;
   formattingChangeCount: number;
   totalChangeCount: number;
-  adjustedMinorThreshold: number; // Auto-adjusted threshold
+  adjustedMinorThreshold: number;
   createdAt: string;
   updatedAt: string;
 }
 
 export class ChangeClassifier {
-  private defaultMinorThreshold = 15;
-  private defaultModerateThreshold = 40;
+  /**
+   * Generate a deterministic ID for a noise profile based on sourceUrl
+   */
+  private generateNoiseProfileId(sourceUrl: string): string {
+    return `noise_${crypto.createHash('sha256').update(sourceUrl).digest('hex').substring(0, 16)}`;
+  }
 
   async classifyChange(
     policyId: string,
@@ -141,41 +156,48 @@ export class ChangeClassifier {
   }
 
   private async getOrCreateNoiseProfile(sourceUrl: string): Promise<NoiseProfile> {
+    const profileId = this.generateNoiseProfileId(sourceUrl);
+
     try {
-      const existing = await cosmosService.queryDocuments<NoiseProfile>(
+      // Try to get existing profile by ID (more efficient than query)
+      const existing = await cosmosService.getDocument<NoiseProfile>(
         'documents',
-        'SELECT * FROM c WHERE c.type = "noise_profile" AND c.sourceUrl = @sourceUrl',
-        [{ name: '@sourceUrl', value: sourceUrl }]
+        profileId,
+        profileId // Using ID as partition key for noise profiles
       );
 
-      if (existing.length > 0) {
-        return existing[0];
+      if (existing) {
+        return existing;
       }
 
-      // Create new noise profile
-      const newProfile: NoiseProfile & { type: string } = {
+      // Create new noise profile with proper ID
+      const newProfile: NoiseProfile = {
+        id: profileId,
         type: 'noise_profile',
         sourceUrl,
         historicalChanges: [],
         formattingChangeCount: 0,
         totalChangeCount: 0,
-        adjustedMinorThreshold: this.defaultMinorThreshold,
+        adjustedMinorThreshold: MINOR_THRESHOLD_DEFAULT,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
 
       await cosmosService.createDocument('documents', newProfile);
-      logger.info('Created noise profile', { sourceUrl });
+      logger.info('Created noise profile', { sourceUrl, profileId });
 
       return newProfile;
     } catch (error) {
-      logger.warn('Failed to get/create noise profile', error);
+      logger.warn('Failed to get/create noise profile, using defaults', { sourceUrl, error });
+      // Return a transient profile that won't be persisted
       return {
+        id: profileId,
+        type: 'noise_profile',
         sourceUrl,
         historicalChanges: [],
         formattingChangeCount: 0,
         totalChangeCount: 0,
-        adjustedMinorThreshold: this.defaultMinorThreshold,
+        adjustedMinorThreshold: MINOR_THRESHOLD_DEFAULT,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -187,6 +209,8 @@ export class ChangeClassifier {
     changeScore: number,
     changeType: ChangeType
   ): Promise<void> {
+    const profileId = this.generateNoiseProfileId(sourceUrl);
+
     try {
       const profile = await this.getOrCreateNoiseProfile(sourceUrl);
 
@@ -197,9 +221,9 @@ export class ChangeClassifier {
         timestamp: new Date().toISOString(),
       });
 
-      // Keep last 20 changes
-      if (profile.historicalChanges.length > 20) {
-        profile.historicalChanges = profile.historicalChanges.slice(-20);
+      // Keep last N changes
+      if (profile.historicalChanges.length > MAX_HISTORY_SIZE) {
+        profile.historicalChanges = profile.historicalChanges.slice(-MAX_HISTORY_SIZE);
       }
 
       profile.totalChangeCount++;
@@ -209,11 +233,11 @@ export class ChangeClassifier {
 
       // Auto-adjust threshold if source has frequent minor changes
       const minorChangeRatio = profile.formattingChangeCount / profile.totalChangeCount;
-      if (minorChangeRatio > 0.7 && profile.totalChangeCount >= 5) {
+      if (minorChangeRatio > NOISY_SOURCE_RATIO && profile.totalChangeCount >= MIN_CHANGES_FOR_ADJUSTMENT) {
         // Raise the MINOR threshold for noisy sources
         profile.adjustedMinorThreshold = Math.min(
-          this.defaultMinorThreshold + 10,
-          25
+          MINOR_THRESHOLD_DEFAULT + 10,
+          MAX_MINOR_THRESHOLD
         );
         logger.info('Adjusted MINOR threshold for noisy source', {
           sourceUrl,
@@ -224,9 +248,10 @@ export class ChangeClassifier {
 
       profile.updatedAt = new Date().toISOString();
 
-      await cosmosService.updateDocument('documents', sourceUrl, sourceUrl, profile);
+      // Use proper ID and partition key
+      await cosmosService.updateDocument('documents', profileId, profileId, profile);
     } catch (error) {
-      logger.warn('Failed to update noise profile', error);
+      logger.warn('Failed to update noise profile', { sourceUrl, profileId, error });
     }
   }
 
@@ -234,8 +259,8 @@ export class ChangeClassifier {
     noiseProfile: NoiseProfile | null
   ): { minor: number; moderate: number } {
     return {
-      minor: noiseProfile?.adjustedMinorThreshold || this.defaultMinorThreshold,
-      moderate: this.defaultModerateThreshold,
+      minor: noiseProfile?.adjustedMinorThreshold || MINOR_THRESHOLD_DEFAULT,
+      moderate: MODERATE_THRESHOLD_DEFAULT,
     };
   }
 

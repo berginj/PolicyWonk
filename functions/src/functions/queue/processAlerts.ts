@@ -3,6 +3,7 @@
 import { app, InvocationContext } from '@azure/functions';
 import { cosmosService } from '../../services/cosmosService';
 import { notificationService } from '../../services/notificationService';
+import { decodeQueueMessage } from '../../services/queueService';
 import { Document } from '../../types/document';
 import { DiffRecord } from '../../types/diff';
 import { Alert, Notification } from '../../types/alert';
@@ -11,27 +12,48 @@ import { v4 as uuidv4 } from 'uuid';
 
 interface AlertMessage {
   entityId: string;  // diffId
-  entityType: string;  // 'diff'
-  triggerType: string;  // 'policy_update'
+  entityType: 'diff';
+  triggerType: 'policy_update';
+}
+
+function isValidAlertMessage(obj: unknown): obj is AlertMessage {
+  if (typeof obj !== 'object' || obj === null) return false;
+  const msg = obj as Record<string, unknown>;
+  return (
+    typeof msg.entityId === 'string' &&
+    msg.entityId.length > 0 &&
+    msg.entityType === 'diff' &&
+    msg.triggerType === 'policy_update'
+  );
 }
 
 export async function processAlerts(
   queueItem: unknown,
   context: InvocationContext
 ): Promise<void> {
-  const message = JSON.parse(Buffer.from(queueItem as string, 'base64').toString('utf-8')) as AlertMessage;
   const logger = createLogger({
     functionName: 'processAlerts',
     correlationId: context.invocationId,
   });
 
+  let message: AlertMessage;
+  try {
+    const parsed = decodeQueueMessage<AlertMessage>(queueItem);
+
+    if (!isValidAlertMessage(parsed)) {
+      logger.warn('Unsupported or invalid alert message', { parsed });
+      return; // Silently skip unsupported message types
+    }
+
+    message = parsed;
+  } catch (parseError) {
+    const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
+    logger.error('Failed to parse alert queue message', { error: errorMessage });
+    throw parseError;
+  }
+
   try {
     logger.info('Processing alerts', { entityId: message.entityId, triggerType: message.triggerType });
-
-    if (message.entityType !== 'diff' || message.triggerType !== 'policy_update') {
-      logger.warn('Unsupported alert type', { message });
-      return;
-    }
 
     const diffId = message.entityId;
 
