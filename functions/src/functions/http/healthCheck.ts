@@ -39,22 +39,41 @@ app.http('healthCheck', {
   handler: healthCheck,
 });
 
-// Test function to verify new route registration in existing files
+// Test function - now also handles reprocessing via POST
 export async function testRoute(
-  _request: HttpRequest,
-  _context: InvocationContext
+  request: HttpRequest,
+  context: InvocationContext
 ): Promise<HttpResponseInit> {
+  // If POST, delegate to reprocess
+  if (request.method === 'POST') {
+    context.log('Reprocess called via test-in-health route');
+    try {
+      const { reprocessDocument } = await import('./reprocessDocument');
+      return reprocessDocument(request, context);
+    } catch (error) {
+      return {
+        status: 500,
+        jsonBody: {
+          error: 'Failed to load reprocess module',
+          message: error instanceof Error ? error.message : String(error)
+        }
+      };
+    }
+  }
+
+  // GET: return test info
   return {
     status: 200,
     jsonBody: {
       message: 'Test route in healthCheck.ts works!',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      note: 'POST to this route to trigger document reprocessing'
     }
   };
 }
 
 app.http('testRoute', {
-  methods: ['GET'],
+  methods: ['GET', 'POST'],
   authLevel: 'anonymous',
   route: 'test-in-health',
   handler: testRoute,
