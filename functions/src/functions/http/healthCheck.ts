@@ -59,3 +59,32 @@ app.http('testRoute', {
   route: 'test-in-health',
   handler: testRoute,
 });
+
+// Inline reprocess route to test if admin route works
+export async function adminReprocess(
+  request: HttpRequest,
+  context: InvocationContext
+): Promise<HttpResponseInit> {
+  context.log('Admin reprocess called');
+
+  // Dynamic import to avoid module loading issues
+  try {
+    const { reprocessDocument } = await import('./reprocessDocument');
+    return reprocessDocument(request, context);
+  } catch (error) {
+    return {
+      status: 500,
+      jsonBody: {
+        error: 'Failed to load reprocess module',
+        message: error instanceof Error ? error.message : String(error)
+      }
+    };
+  }
+}
+
+app.http('adminReprocess', {
+  methods: ['POST'],
+  authLevel: 'anonymous',
+  route: 'admin/reprocess2',
+  handler: adminReprocess,
+});
