@@ -11,7 +11,9 @@ export async function healthCheck(
     jsonBody: {
       status: 'healthy',
       timestamp: new Date().toISOString(),
-      message: 'PolicyWonk Functions are running!'
+      message: 'PolicyWonk Functions are running!',
+      entryPoint: 'dist/index.js',
+      version: '2026-03-03-v2'
     }
   };
 }
