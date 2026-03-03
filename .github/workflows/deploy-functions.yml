@@ -38,3 +38,12 @@ jobs:
         with:
           app-name: func-pwonk-v2
           package: functions
+
+      - name: Sync function triggers
+        run: |
+          az functionapp config appsettings set --name func-pwonk-v2 --resource-group rg-pwonk-prod --settings "DEPLOYMENT_TIMESTAMP=$(date +%s)"
+          az rest --method post --uri "https://management.azure.com/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/rg-pwonk-prod/providers/Microsoft.Web/sites/func-pwonk-v2/syncfunctiontriggers?api-version=2022-03-01"
+
+      - name: Restart Function App
+        run: |
+          az functionapp restart --name func-pwonk-v2 --resource-group rg-pwonk-prod
