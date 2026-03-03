@@ -1,5 +1,7 @@
 // POST /api/admin/reprocess - Manually trigger document processing (bypasses queue)
 
+console.log('[PolicyWonk] Loading reprocessDocument module...');
+
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { cosmosService } from '../../services/cosmosService';
 import { blobService } from '../../services/blobService';
@@ -375,9 +377,13 @@ function isFramework(tag: string): boolean {
   return frameworks.some((f) => tag.toLowerCase().includes(f.toLowerCase()));
 }
 
+console.log('[PolicyWonk] Registering reprocessDocument function...');
+
 app.http('reprocessDocument', {
   methods: ['POST'],
   authLevel: 'anonymous',
   route: 'admin/reprocess',
   handler: reprocessDocument,
 });
+
+console.log('[PolicyWonk] reprocessDocument registered successfully');

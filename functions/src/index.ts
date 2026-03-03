@@ -16,6 +16,7 @@ import './functions/http/updateDocument';
 import './functions/http/updatePolicyMonitoring';
 import './functions/http/deleteDocument';
 import './functions/http/reprocessDocument';
+import './functions/http/testFunction';
 
 // Queue Functions
 import './functions/queue/processDocument';
