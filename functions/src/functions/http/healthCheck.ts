@@ -24,4 +24,24 @@ app.http('healthCheck', {
   route: 'health',
   handler: healthCheck,
 });
-// Trigger redeploy 1772172200
+
+// Test function to verify new route registration in existing files
+export async function testRoute(
+  _request: HttpRequest,
+  _context: InvocationContext
+): Promise<HttpResponseInit> {
+  return {
+    status: 200,
+    jsonBody: {
+      message: 'Test route in healthCheck.ts works!',
+      timestamp: new Date().toISOString()
+    }
+  };
+}
+
+app.http('testRoute', {
+  methods: ['GET'],
+  authLevel: 'anonymous',
+  route: 'test-in-health',
+  handler: testRoute,
+});
