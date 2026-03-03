@@ -1,5 +1,15 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 
+// Diagnostic: Check if reprocessDocument module can be imported
+let reprocessModuleLoaded = false;
+let reprocessModuleError = '';
+try {
+  require('./reprocessDocument');
+  reprocessModuleLoaded = true;
+} catch (error) {
+  reprocessModuleError = error instanceof Error ? error.message : String(error);
+}
+
 export async function healthCheck(
   _request: HttpRequest,
   context: InvocationContext
@@ -13,7 +23,11 @@ export async function healthCheck(
       timestamp: new Date().toISOString(),
       message: 'PolicyWonk Functions are running!',
       entryPoint: 'dist/index.js',
-      version: '2026-03-03-v2'
+      version: '2026-03-03-v3',
+      diagnostics: {
+        reprocessModuleLoaded,
+        reprocessModuleError: reprocessModuleError || null
+      }
     }
   };
 }
