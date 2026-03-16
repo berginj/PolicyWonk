@@ -1,6 +1,6 @@
 // Azure OpenAI service with caching for cost optimization
 
-import { OpenAIClient, AzureKeyCredential } from '@azure/openai';
+import { AzureOpenAI } from 'openai';
 import { DefaultAzureCredential } from '@azure/identity';
 import { SecretClient } from '@azure/keyvault-secrets';
 import { getConfig } from '../utils/config';
@@ -9,7 +9,7 @@ import { ExternalServiceError } from '../utils/errors';
 import { cacheService } from './cacheService';
 
 class OpenAIService {
-  private client: OpenAIClient | null = null;
+  private client: AzureOpenAI | null = null;
 
   async initialize(): Promise<void> {
     if (this.client) return;
@@ -23,10 +23,11 @@ class OpenAIService {
       const secretClient = new SecretClient(keyVaultUrl, credential);
       const secret = await secretClient.getSecret('OpenAIKey');
 
-      this.client = new OpenAIClient(
-        config.openai.endpoint,
-        new AzureKeyCredential(secret.value!)
-      );
+      this.client = new AzureOpenAI({
+        apiKey: secret.value!,
+        endpoint: config.openai.endpoint,
+        apiVersion: '2024-02-01',
+      });
 
       logger.info('OpenAI client initialized');
     } catch (error) {
@@ -48,10 +49,10 @@ class OpenAIService {
 
     try {
       const config = getConfig();
-      const response = await this.client!.getEmbeddings(
-        config.openai.embeddingDeployment,
-        [text]
-      );
+      const response = await this.client!.embeddings.create({
+        model: config.openai.embeddingDeployment,
+        input: text,
+      });
 
       const embedding = response.data[0].embedding;
 
@@ -91,10 +92,10 @@ class OpenAIService {
     if (uncachedTexts.length > 0) {
       try {
         const config = getConfig();
-        const response = await this.client!.getEmbeddings(
-          config.openai.embeddingDeployment,
-          uncachedTexts
-        );
+        const response = await this.client!.embeddings.create({
+          model: config.openai.embeddingDeployment,
+          input: uncachedTexts,
+        });
 
         // Cache and store results
         for (let i = 0; i < uncachedTexts.length; i++) {
@@ -128,10 +129,10 @@ class OpenAIService {
 
     try {
       const config = getConfig();
-      const response = await this.client!.getChatCompletions(
-        config.openai.chatDeployment,
-        messages
-      );
+      const response = await this.client!.chat.completions.create({
+        model: config.openai.chatDeployment,
+        messages: messages as any,
+      });
 
       return response.choices[0].message?.content || '';
     } catch (error) {
@@ -147,13 +148,11 @@ class OpenAIService {
 
     try {
       const config = getConfig();
-      const response = await this.client!.getChatCompletions(
-        config.openai.chatDeployment,
-        messages,
-        {
-          responseFormat: { type: 'json_object' },
-        }
-      );
+      const response = await this.client!.chat.completions.create({
+        model: config.openai.chatDeployment,
+        messages: messages as any,
+        response_format: { type: 'json_object' },
+      });
 
       const content = response.choices[0].message?.content || '{}';
       return JSON.parse(content) as T;
