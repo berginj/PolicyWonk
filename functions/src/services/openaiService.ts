@@ -1,6 +1,6 @@
 // Azure OpenAI service with caching for cost optimization
 
-import { AzureOpenAI } from 'openai';
+import axios from 'axios';
 import { DefaultAzureCredential } from '@azure/identity';
 import { SecretClient } from '@azure/keyvault-secrets';
 import { getConfig } from '../utils/config';
@@ -9,10 +9,12 @@ import { ExternalServiceError } from '../utils/errors';
 import { cacheService } from './cacheService';
 
 class OpenAIService {
-  private client: AzureOpenAI | null = null;
+  private apiKey: string | null = null;
+  private endpoint: string | null = null;
+  private apiVersion = '2024-02-01';
 
   async initialize(): Promise<void> {
-    if (this.client) return;
+    if (this.apiKey) return;
 
     try {
       const config = getConfig();
@@ -23,15 +25,12 @@ class OpenAIService {
       const secretClient = new SecretClient(keyVaultUrl, credential);
       const secret = await secretClient.getSecret('OpenAIKey');
 
-      this.client = new AzureOpenAI({
-        apiKey: secret.value!,
-        endpoint: config.openai.endpoint,
-        apiVersion: '2024-02-01',
-      });
+      this.apiKey = secret.value!;
+      this.endpoint = config.openai.endpoint.replace(/\/$/, ''); // Remove trailing slash
 
-      logger.info('OpenAI client initialized');
+      logger.info('OpenAI service initialized', { endpoint: this.endpoint });
     } catch (error) {
-      logger.error('Failed to initialize OpenAI client', error);
+      logger.error('Failed to initialize OpenAI service', error);
       throw new ExternalServiceError('OpenAI', error as Error);
     }
   }
@@ -49,12 +48,19 @@ class OpenAIService {
 
     try {
       const config = getConfig();
-      const response = await this.client!.embeddings.create({
-        model: config.openai.embeddingDeployment,
+      const url = `${this.endpoint}/openai/deployments/${config.openai.embeddingDeployment}/embeddings?api-version=${this.apiVersion}`;
+
+      const response = await axios.post(url, {
         input: text,
+        model: config.openai.embeddingDeployment,
+      }, {
+        headers: {
+          'api-key': this.apiKey!,
+          'Content-Type': 'application/json',
+        },
       });
 
-      const embedding = response.data[0].embedding;
+      const embedding = response.data.data[0].embedding;
 
       // Cache for 7 days
       cacheService.set(cacheKey, embedding);
@@ -92,14 +98,21 @@ class OpenAIService {
     if (uncachedTexts.length > 0) {
       try {
         const config = getConfig();
-        const response = await this.client!.embeddings.create({
-          model: config.openai.embeddingDeployment,
+        const url = `${this.endpoint}/openai/deployments/${config.openai.embeddingDeployment}/embeddings?api-version=${this.apiVersion}`;
+
+        const response = await axios.post(url, {
           input: uncachedTexts,
+          model: config.openai.embeddingDeployment,
+        }, {
+          headers: {
+            'api-key': this.apiKey!,
+            'Content-Type': 'application/json',
+          },
         });
 
         // Cache and store results
         for (let i = 0; i < uncachedTexts.length; i++) {
-          const embedding = response.data[i].embedding;
+          const embedding = response.data.data[i].embedding;
           const originalIndex = uncachedIndices[i];
           results[originalIndex] = embedding;
 
@@ -129,12 +142,18 @@ class OpenAIService {
 
     try {
       const config = getConfig();
-      const response = await this.client!.chat.completions.create({
-        model: config.openai.chatDeployment,
-        messages: messages as any,
+      const url = `${this.endpoint}/openai/deployments/${config.openai.chatDeployment}/chat/completions?api-version=${this.apiVersion}`;
+
+      const response = await axios.post(url, {
+        messages,
+      }, {
+        headers: {
+          'api-key': this.apiKey!,
+          'Content-Type': 'application/json',
+        },
       });
 
-      return response.choices[0].message?.content || '';
+      return response.data.choices[0].message?.content || '';
     } catch (error) {
       logger.error('Failed to generate chat completion', error);
       throw new ExternalServiceError('OpenAI', error as Error);
@@ -148,13 +167,19 @@ class OpenAIService {
 
     try {
       const config = getConfig();
-      const response = await this.client!.chat.completions.create({
-        model: config.openai.chatDeployment,
-        messages: messages as any,
+      const url = `${this.endpoint}/openai/deployments/${config.openai.chatDeployment}/chat/completions?api-version=${this.apiVersion}`;
+
+      const response = await axios.post(url, {
+        messages,
         response_format: { type: 'json_object' },
+      }, {
+        headers: {
+          'api-key': this.apiKey!,
+          'Content-Type': 'application/json',
+        },
       });
 
-      const content = response.choices[0].message?.content || '{}';
+      const content = response.data.choices[0].message?.content || '{}';
       return JSON.parse(content) as T;
     } catch (error) {
       logger.error('Failed to generate JSON chat completion', error);
