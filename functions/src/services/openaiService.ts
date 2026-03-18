@@ -160,27 +160,47 @@ class OpenAIService {
       }
     }
 
-    // Only call OpenAI for uncached texts
+    // Only call OpenAI for uncached texts - process in batches to avoid rate limits
     if (uncachedTexts.length > 0) {
       try {
         const config = getConfig();
         const url = `${this.endpoint}/openai/deployments/${config.openai.embeddingDeployment}/embeddings?api-version=${this.apiVersion}`;
 
-        const response = await this.requestWithRetry<{ data: Array<{ embedding: number[] }> }>(
-          url,
-          { input: uncachedTexts, model: config.openai.embeddingDeployment },
-          'generateEmbeddings'
-        );
+        // Process in batches of 10 to avoid rate limits
+        const BATCH_SIZE = 10;
+        const BATCH_DELAY_MS = 1000; // 1 second between batches
 
-        // Cache and store results
-        for (let i = 0; i < uncachedTexts.length; i++) {
-          const embedding = response.data.data[i].embedding;
-          const originalIndex = uncachedIndices[i];
-          results[originalIndex] = embedding;
+        for (let batchStart = 0; batchStart < uncachedTexts.length; batchStart += BATCH_SIZE) {
+          const batchEnd = Math.min(batchStart + BATCH_SIZE, uncachedTexts.length);
+          const batchTexts = uncachedTexts.slice(batchStart, batchEnd);
+          const batchIndices = uncachedIndices.slice(batchStart, batchEnd);
 
-          // Cache it
-          const cacheKey = cacheService.generateKey('embedding', uncachedTexts[i]);
-          cacheService.set(cacheKey, embedding);
+          logger.info(`Processing embedding batch ${Math.floor(batchStart / BATCH_SIZE) + 1}/${Math.ceil(uncachedTexts.length / BATCH_SIZE)}`, {
+            batchSize: batchTexts.length,
+            totalRemaining: uncachedTexts.length - batchStart,
+          });
+
+          const response = await this.requestWithRetry<{ data: Array<{ embedding: number[] }> }>(
+            url,
+            { input: batchTexts, model: config.openai.embeddingDeployment },
+            `generateEmbeddings-batch-${Math.floor(batchStart / BATCH_SIZE) + 1}`
+          );
+
+          // Cache and store results for this batch
+          for (let i = 0; i < batchTexts.length; i++) {
+            const embedding = response.data.data[i].embedding;
+            const originalIndex = batchIndices[i];
+            results[originalIndex] = embedding;
+
+            // Cache it
+            const cacheKey = cacheService.generateKey('embedding', batchTexts[i]);
+            cacheService.set(cacheKey, embedding);
+          }
+
+          // Add delay between batches to avoid rate limiting (except for last batch)
+          if (batchEnd < uncachedTexts.length) {
+            await sleep(BATCH_DELAY_MS);
+          }
         }
 
         logger.debug('Embeddings generated', {
