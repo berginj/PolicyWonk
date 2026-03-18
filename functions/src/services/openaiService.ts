@@ -1,6 +1,6 @@
 // Azure OpenAI service with caching for cost optimization
 
-import axios from 'axios';
+import axios, { AxiosResponse } from 'axios';
 import { DefaultAzureCredential } from '@azure/identity';
 import { SecretClient } from '@azure/keyvault-secrets';
 import { getConfig } from '../utils/config';
@@ -8,10 +8,68 @@ import { logger } from '../utils/logger';
 import { ExternalServiceError } from '../utils/errors';
 import { cacheService } from './cacheService';
 
+// Retry configuration
+const MAX_RETRIES = 5;
+const INITIAL_DELAY_MS = 1000;
+const MAX_DELAY_MS = 60000;
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 class OpenAIService {
   private apiKey: string | null = null;
   private endpoint: string | null = null;
   private apiVersion = '2024-02-01';
+
+  // Helper method to make requests with retry logic for rate limiting
+  private async requestWithRetry<T>(
+    url: string,
+    data: unknown,
+    operation: string
+  ): Promise<AxiosResponse<T>> {
+    let lastError: Error | null = null;
+    let delay = INITIAL_DELAY_MS;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const response = await axios.post<T>(url, data, {
+          headers: {
+            'api-key': this.apiKey!,
+            'Content-Type': 'application/json',
+          },
+        });
+        return response;
+      } catch (error) {
+        lastError = error as Error;
+
+        // Check if it's a rate limit error (429)
+        if (axios.isAxiosError(error) && error.response?.status === 429) {
+          // Get retry-after header if available
+          const retryAfter = error.response.headers['retry-after'];
+          const waitTime = retryAfter ? parseInt(retryAfter, 10) * 1000 : delay;
+          const actualWait = Math.min(waitTime, MAX_DELAY_MS);
+
+          logger.warn(`Rate limited on ${operation}, attempt ${attempt}/${MAX_RETRIES}. Waiting ${actualWait}ms`, {
+            attempt,
+            waitTime: actualWait,
+            retryAfter,
+          });
+
+          await sleep(actualWait);
+          delay = Math.min(delay * 2, MAX_DELAY_MS); // Exponential backoff
+          continue;
+        }
+
+        // For non-rate-limit errors, throw immediately
+        throw error;
+      }
+    }
+
+    // All retries exhausted
+    logger.error(`${operation} failed after ${MAX_RETRIES} retries due to rate limiting`);
+    throw lastError || new Error(`${operation} failed after ${MAX_RETRIES} retries`);
+  }
 
   async initialize(): Promise<void> {
     if (this.apiKey) return;
@@ -50,15 +108,11 @@ class OpenAIService {
       const config = getConfig();
       const url = `${this.endpoint}/openai/deployments/${config.openai.embeddingDeployment}/embeddings?api-version=${this.apiVersion}`;
 
-      const response = await axios.post(url, {
-        input: text,
-        model: config.openai.embeddingDeployment,
-      }, {
-        headers: {
-          'api-key': this.apiKey!,
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await this.requestWithRetry<{ data: Array<{ embedding: number[] }> }>(
+        url,
+        { input: text, model: config.openai.embeddingDeployment },
+        'generateEmbedding'
+      );
 
       const embedding = response.data.data[0].embedding;
 
@@ -100,15 +154,11 @@ class OpenAIService {
         const config = getConfig();
         const url = `${this.endpoint}/openai/deployments/${config.openai.embeddingDeployment}/embeddings?api-version=${this.apiVersion}`;
 
-        const response = await axios.post(url, {
-          input: uncachedTexts,
-          model: config.openai.embeddingDeployment,
-        }, {
-          headers: {
-            'api-key': this.apiKey!,
-            'Content-Type': 'application/json',
-          },
-        });
+        const response = await this.requestWithRetry<{ data: Array<{ embedding: number[] }> }>(
+          url,
+          { input: uncachedTexts, model: config.openai.embeddingDeployment },
+          'generateEmbeddings'
+        );
 
         // Cache and store results
         for (let i = 0; i < uncachedTexts.length; i++) {
@@ -144,14 +194,9 @@ class OpenAIService {
       const config = getConfig();
       const url = `${this.endpoint}/openai/deployments/${config.openai.chatDeployment}/chat/completions?api-version=${this.apiVersion}`;
 
-      const response = await axios.post(url, {
-        messages,
-      }, {
-        headers: {
-          'api-key': this.apiKey!,
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await this.requestWithRetry<{
+        choices: Array<{ message?: { content?: string } }>;
+      }>(url, { messages }, 'chat');
 
       return response.data.choices[0].message?.content || '';
     } catch (error) {
@@ -169,15 +214,13 @@ class OpenAIService {
       const config = getConfig();
       const url = `${this.endpoint}/openai/deployments/${config.openai.chatDeployment}/chat/completions?api-version=${this.apiVersion}`;
 
-      const response = await axios.post(url, {
-        messages,
-        response_format: { type: 'json_object' },
-      }, {
-        headers: {
-          'api-key': this.apiKey!,
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await this.requestWithRetry<{
+        choices: Array<{ message?: { content?: string } }>;
+      }>(
+        url,
+        { messages, response_format: { type: 'json_object' } },
+        'chatWithJson'
+      );
 
       const content = response.data.choices[0].message?.content || '{}';
       return JSON.parse(content) as T;
