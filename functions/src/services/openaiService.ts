@@ -43,22 +43,34 @@ class OpenAIService {
       } catch (error) {
         lastError = error as Error;
 
-        // Check if it's a rate limit error (429)
-        if (axios.isAxiosError(error) && error.response?.status === 429) {
-          // Get retry-after header if available
-          const retryAfter = error.response.headers['retry-after'];
-          const waitTime = retryAfter ? parseInt(retryAfter, 10) * 1000 : delay;
-          const actualWait = Math.min(waitTime, MAX_DELAY_MS);
-
-          logger.warn(`Rate limited on ${operation}, attempt ${attempt}/${MAX_RETRIES}. Waiting ${actualWait}ms`, {
-            attempt,
-            waitTime: actualWait,
-            retryAfter,
+        // Log detailed error info
+        if (axios.isAxiosError(error)) {
+          logger.error(`OpenAI API error on ${operation}`, {
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            data: error.response?.data,
+            headers: error.response?.headers,
+            url: error.config?.url,
           });
 
-          await sleep(actualWait);
-          delay = Math.min(delay * 2, MAX_DELAY_MS); // Exponential backoff
-          continue;
+          // Check if it's a rate limit error (429)
+          if (error.response?.status === 429) {
+            // Get retry-after header if available
+            const retryAfter = error.response.headers['retry-after'];
+            const waitTime = retryAfter ? parseInt(retryAfter, 10) * 1000 : delay;
+            const actualWait = Math.min(waitTime, MAX_DELAY_MS);
+
+            logger.warn(`Rate limited on ${operation}, attempt ${attempt}/${MAX_RETRIES}. Waiting ${actualWait}ms`, {
+              attempt,
+              waitTime: actualWait,
+              retryAfter,
+              errorMessage: error.response?.data?.error?.message,
+            });
+
+            await sleep(actualWait);
+            delay = Math.min(delay * 2, MAX_DELAY_MS); // Exponential backoff
+            continue;
+          }
         }
 
         // For non-rate-limit errors, throw immediately
