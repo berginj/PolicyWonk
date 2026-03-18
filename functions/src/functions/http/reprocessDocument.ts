@@ -202,7 +202,19 @@ async function processDocumentDirectly(
 
     // Generate embeddings for chunks
     const chunkSize = 512;
-    const chunks = chunkText(normalizedText, chunkSize);
+    const allChunks = chunkText(normalizedText, chunkSize);
+
+    // Limit chunks to avoid HTTP timeout (50 chunks * 10 per batch = 5 batches = ~10 seconds)
+    const MAX_CHUNKS = 50;
+    const chunks = allChunks.slice(0, MAX_CHUNKS);
+
+    logger.info('Processing chunks', {
+      documentId: doc.id,
+      totalChunks: allChunks.length,
+      processedChunks: chunks.length,
+      limited: allChunks.length > MAX_CHUNKS,
+    });
+
     const embeddings = await openaiService.generateEmbeddings(
       chunks.map((c) => c.text)
     );
