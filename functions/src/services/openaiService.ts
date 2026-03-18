@@ -8,10 +8,10 @@ import { logger } from '../utils/logger';
 import { ExternalServiceError } from '../utils/errors';
 import { cacheService } from './cacheService';
 
-// Retry configuration
-const MAX_RETRIES = 5;
-const INITIAL_DELAY_MS = 1000;
-const MAX_DELAY_MS = 60000;
+// Retry configuration - tuned for Azure Functions HTTP timeout (~230s)
+const MAX_RETRIES = 3;
+const INITIAL_DELAY_MS = 2000;
+const MAX_DELAY_MS = 30000;
 
 async function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
