@@ -23,7 +23,7 @@ export async function healthCheck(
       timestamp: new Date().toISOString(),
       message: 'PolicyWonk Functions are running!',
       entryPoint: 'dist/index.js',
-      version: '2026-03-18-v2',
+      version: '2026-03-18-v3',
       diagnostics: {
         reprocessModuleLoaded,
         reprocessModuleError: reprocessModuleError || null
@@ -106,4 +106,59 @@ app.http('adminReprocess', {
   authLevel: 'anonymous',
   route: 'admin/reprocess2',
   handler: adminReprocess,
+});
+
+// Diagnostic endpoint to test OpenAI connection directly
+export async function testOpenAI(
+  _request: HttpRequest,
+  context: InvocationContext
+): Promise<HttpResponseInit> {
+  context.log('Testing OpenAI connection');
+
+  try {
+    const { openaiService } = await import('../../services/openaiService');
+    const { getConfig } = await import('../../utils/config');
+
+    const config = getConfig();
+
+    // Try to generate a simple embedding
+    const startTime = Date.now();
+    const embedding = await openaiService.generateEmbedding('test');
+    const duration = Date.now() - startTime;
+
+    return {
+      status: 200,
+      jsonBody: {
+        success: true,
+        message: 'OpenAI connection successful',
+        duration: `${duration}ms`,
+        embeddingLength: embedding.length,
+        config: {
+          endpoint: config.openai.endpoint,
+          embeddingDeployment: config.openai.embeddingDeployment,
+          chatDeployment: config.openai.chatDeployment,
+          keyVaultName: config.keyVault.name,
+        }
+      }
+    };
+  } catch (error) {
+    const err = error as Error & { response?: { status?: number; data?: unknown } };
+    return {
+      status: 500,
+      jsonBody: {
+        success: false,
+        error: err.message,
+        stack: err.stack,
+        responseStatus: err.response?.status,
+        responseData: err.response?.data,
+      }
+    };
+  }
+}
+
+app.http('testOpenAI', {
+  methods: ['GET'],
+  authLevel: 'anonymous',
+  route: 'test-openai',
+  handler: testOpenAI,
 });
