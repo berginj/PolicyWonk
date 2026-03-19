@@ -215,9 +215,10 @@ async function processDocumentDirectly(
       limited: allChunks.length > MAX_CHUNKS,
     });
 
-    const embeddings = await openaiService.generateEmbeddings(
-      chunks.map((c) => c.text)
-    );
+    // Skip embeddings for now - index doesn't support vector fields yet
+    // const embeddings = await openaiService.generateEmbeddings(
+    //   chunks.map((c) => c.text)
+    // );
 
     // Generate tags using LLM
     const tags = await generateTags(normalizedText.substring(0, 2000));
@@ -225,22 +226,20 @@ async function processDocumentDirectly(
     // Detect frameworks from tags
     const frameworks = tags.filter((t) => isFramework(t.tag)).map((t) => t.tag);
 
-    // Index in search
+    // Index in search (without vector fields - index doesn't support them yet)
     await searchService.indexDocument({
       id: doc.id,
       title: doc.title,
       docType: doc.docType,
       tags: tags.map((t) => t.tag),
       frameworks,
-      contentVector: embeddings[0] || [],
       chunks: chunks.map((c, idx) => ({
         chunkId: `${doc.id}_chunk_${idx}`,
         text: c.text,
-        chunkVector: embeddings[idx] || [],
       })),
       createdAt: doc.createdAt,
       updatedAt: new Date().toISOString(),
-    });
+    } as any);
 
     // Update document with tags and completed status
     await cosmosService.updateDocument<Document>(
