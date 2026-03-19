@@ -23,7 +23,7 @@ export async function healthCheck(
       timestamp: new Date().toISOString(),
       message: 'PolicyWonk Functions are running!',
       entryPoint: 'dist/index.js',
-      version: '2026-03-18-v6',
+      version: '2026-03-19-v1',
       diagnostics: {
         reprocessModuleLoaded,
         reprocessModuleError: reprocessModuleError || null

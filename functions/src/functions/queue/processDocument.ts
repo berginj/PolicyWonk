@@ -147,36 +147,44 @@ export async function processDocument(
       { extractedTextBlobPath }
     );
 
-    // Generate embeddings for chunks
+    // Generate chunks for text search
     const chunkSize = 512;
     const chunks = chunkText(normalizedText, chunkSize);
-    const embeddings = await openaiService.generateEmbeddings(
-      chunks.map((c) => c.text)
-    );
+
+    // Skip embeddings for now - search index doesn't support vector fields yet
+    // const embeddings = await openaiService.generateEmbeddings(
+    //   chunks.map((c) => c.text)
+    // );
+
+    logger.info('Processing chunks', {
+      documentId: job.documentId,
+      totalChunks: chunks.length,
+    });
 
     // Generate tags using LLM
     const tags = await generateTags(normalizedText.substring(0, 2000), logger);
 
-    // Index in search
+    // Get document title
+    const doc = await cosmosService.getDocument<Document>(
+      'documents',
+      job.documentId,
+      job.documentId
+    );
+
+    // Index in search (without vector fields - index doesn't support them yet)
     await searchService.indexDocument({
       id: job.documentId,
-      title: (await cosmosService.getDocument<Document>(
-        'documents',
-        job.documentId,
-        job.documentId
-      ))!.title,
+      title: doc!.title,
       docType: job.docType,
       tags: tags.map((t) => t.tag),
       frameworks: tags.filter((t) => isFramework(t.tag)).map((t) => t.tag),
-      contentVector: embeddings[0] || [],
       chunks: chunks.map((c, idx) => ({
         chunkId: `${job.documentId}_chunk_${idx}`,
         text: c.text,
-        chunkVector: embeddings[idx] || [],
       })),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-    });
+    } as any);
 
     // Update document with tags
     await cosmosService.updateDocument<Document>(
