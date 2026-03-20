@@ -23,7 +23,7 @@ export async function healthCheck(
       timestamp: new Date().toISOString(),
       message: 'PolicyWonk Functions are running!',
       entryPoint: 'dist/index.js',
-      version: '2026-03-19-v1',
+      version: '2026-03-20-v1',
       diagnostics: {
         reprocessModuleLoaded,
         reprocessModuleError: reprocessModuleError || null
@@ -161,4 +161,66 @@ app.http('testOpenAI', {
   authLevel: 'anonymous',
   route: 'test-openai',
   handler: testOpenAI,
+});
+
+// Reset document and queue for processing
+export async function queueDocument(
+  request: HttpRequest,
+  context: InvocationContext
+): Promise<HttpResponseInit> {
+  context.log('Queue document called');
+
+  try {
+    const { cosmosService } = await import('../../services/cosmosService');
+    const { queueService } = await import('../../services/queueService');
+    const { getConfig } = await import('../../utils/config');
+
+    const body = await request.json() as { documentId: string };
+    if (!body.documentId) {
+      return { status: 400, jsonBody: { error: 'documentId required' } };
+    }
+
+    // Get document
+    const doc = await cosmosService.getDocument<any>('documents', body.documentId, body.documentId);
+    if (!doc) {
+      return { status: 404, jsonBody: { error: 'Document not found' } };
+    }
+
+    // Reset status to pending
+    await cosmosService.updateDocument('documents', body.documentId, body.documentId, {
+      status: 'pending',
+      errorMessage: null,
+    });
+
+    // Queue for processing
+    const config = getConfig();
+    await queueService.sendMessage(config.queues.processing, {
+      documentId: doc.id,
+      docType: doc.docType || 'policy',
+      rawBlobPath: doc.rawBlobPath,
+      contentType: doc.contentType,
+    });
+
+    return {
+      status: 200,
+      jsonBody: {
+        success: true,
+        message: 'Document queued for processing',
+        documentId: doc.id,
+        rawBlobPath: doc.rawBlobPath,
+      }
+    };
+  } catch (error) {
+    return {
+      status: 500,
+      jsonBody: { error: (error as Error).message }
+    };
+  }
+}
+
+app.http('queueDocument', {
+  methods: ['POST'],
+  authLevel: 'anonymous',
+  route: 'admin/queue',
+  handler: queueDocument,
 });
