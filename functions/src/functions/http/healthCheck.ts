@@ -23,7 +23,7 @@ export async function healthCheck(
       timestamp: new Date().toISOString(),
       message: 'PolicyWonk Functions are running!',
       entryPoint: 'dist/index.js',
-      version: '2026-03-20-v1',
+      version: '2026-03-20-v2',
       diagnostics: {
         reprocessModuleLoaded,
         reprocessModuleError: reprocessModuleError || null
@@ -39,12 +39,62 @@ app.http('healthCheck', {
   handler: healthCheck,
 });
 
-// Test function - now also handles reprocessing via POST
+// Test function - handles reprocessing via POST, queue via PUT
 export async function testRoute(
   request: HttpRequest,
   context: InvocationContext
 ): Promise<HttpResponseInit> {
-  // If POST, delegate to reprocess
+  // PUT: queue document for processing
+  if (request.method === 'PUT') {
+    context.log('Queue document called via test-in-health route');
+    try {
+      const { cosmosService } = await import('../../services/cosmosService');
+      const { queueService } = await import('../../services/queueService');
+      const { getConfig } = await import('../../utils/config');
+
+      const body = await request.json() as { documentId: string };
+      if (!body.documentId) {
+        return { status: 400, jsonBody: { error: 'documentId required' } };
+      }
+
+      const doc = await cosmosService.getDocument<any>('documents', body.documentId, body.documentId);
+      if (!doc) {
+        return { status: 404, jsonBody: { error: 'Document not found' } };
+      }
+
+      // Reset status to pending
+      await cosmosService.updateDocument('documents', body.documentId, body.documentId, {
+        status: 'pending',
+        errorMessage: null,
+      });
+
+      // Queue for processing
+      const config = getConfig();
+      await queueService.sendMessage(config.queues.processing, {
+        documentId: doc.id,
+        docType: doc.docType || 'policy',
+        rawBlobPath: doc.rawBlobPath,
+        contentType: doc.contentType,
+      });
+
+      return {
+        status: 200,
+        jsonBody: {
+          success: true,
+          message: 'Document queued for processing',
+          documentId: doc.id,
+          rawBlobPath: doc.rawBlobPath,
+        }
+      };
+    } catch (error) {
+      return {
+        status: 500,
+        jsonBody: { error: (error as Error).message }
+      };
+    }
+  }
+
+  // POST: delegate to reprocess (HTTP-based)
   if (request.method === 'POST') {
     context.log('Reprocess called via test-in-health route');
     try {
@@ -67,13 +117,13 @@ export async function testRoute(
     jsonBody: {
       message: 'Test route in healthCheck.ts works!',
       timestamp: new Date().toISOString(),
-      note: 'POST to this route to trigger document reprocessing'
+      note: 'POST to reprocess via HTTP, PUT to queue for async processing'
     }
   };
 }
 
 app.http('testRoute', {
-  methods: ['GET', 'POST'],
+  methods: ['GET', 'POST', 'PUT'],
   authLevel: 'anonymous',
   route: 'test-in-health',
   handler: testRoute,
