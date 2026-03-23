@@ -91,6 +91,25 @@ class ApiClient {
     return response.data;
   }
 
+  async createAlert(data: {
+    name: string;
+    alertType: 'new_document' | 'policy_update' | 'deprecation';
+    criteria?: {
+      tags?: string[];
+      keywords?: string[];
+      docType?: 'policy' | 'contract';
+      minSeverity?: 'MAJOR' | 'MODERATE' | 'MINOR';
+      meaningfulChangeOnly?: boolean;
+    };
+    notificationChannels: Array<{
+      type: 'email';
+      address: string;
+    }>;
+  }) {
+    const response = await this.client.post('/alerts', data);
+    return response.data;
+  }
+
   async deleteDocument(documentId: string) {
     const response = await this.client.delete(`/documents/${documentId}`);
     return response.data;

@@ -11,6 +11,7 @@ import './functions/http/getDocument';
 import './functions/http/getDiff';
 import './functions/http/getPolicies';
 import './functions/http/getAlerts';
+import './functions/http/createAlert';
 import './functions/http/getLogs';
 import './functions/http/updateDocument';
 import './functions/http/updatePolicyMonitoring';

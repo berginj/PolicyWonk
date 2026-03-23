@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../services/api';
+import AlertForm from '../alerts/AlertForm';
 import './Dashboard.css';
 
 interface Policy {
@@ -8,6 +9,7 @@ interface Policy {
   title: string;
   sourceUrl?: string;
   updatedAt: string;
+  status?: 'pending' | 'processing' | 'completed' | 'failed';
   monitoringConfig?: {
     enabled: boolean;
   };
@@ -33,6 +35,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [showAlertForm, setShowAlertForm] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -71,6 +74,19 @@ export default function Dashboard() {
         return 'change-badge change-minor';
       default:
         return 'change-badge';
+    }
+  }
+
+  function getStatusBadge(status?: string): { label: string; className: string } | null {
+    switch (status) {
+      case 'failed':
+        return { label: '⚠ Failed', className: 'status-badge status-failed' };
+      case 'pending':
+        return { label: '⏳ Pending', className: 'status-badge status-pending' };
+      case 'processing':
+        return { label: '⚙ Processing', className: 'status-badge status-processing' };
+      default:
+        return null;
     }
   }
 
@@ -129,6 +145,11 @@ export default function Dashboard() {
                   <div className="policy-header">
                     <div className="policy-title">
                       <Link to={`/policies/${policy.id}`}>{policy.title}</Link>
+                      {getStatusBadge(policy.status) && (
+                        <span className={getStatusBadge(policy.status)!.className}>
+                          {getStatusBadge(policy.status)!.label}
+                        </span>
+                      )}
                     </div>
                     <button
                       className="delete-button"
@@ -166,9 +187,14 @@ export default function Dashboard() {
         </div>
 
         <div className="card">
-          <h3>Active Alerts</h3>
+          <div className="card-header-row">
+            <h3>Active Alerts</h3>
+            <button className="add-alert-button" onClick={() => setShowAlertForm(true)}>
+              + Create Alert
+            </button>
+          </div>
           {activeAlerts.length === 0 ? (
-            <p className="empty-message">No active alerts configured.</p>
+            <p className="empty-message">No active alerts configured. Create one to get notified of policy changes.</p>
           ) : (
             <ul className="alert-list">
               {activeAlerts.map((alert) => (
@@ -197,6 +223,15 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {showAlertForm && (
+        <AlertForm
+          onClose={() => setShowAlertForm(false)}
+          onCreated={() => {
+            loadDashboardData();
+          }}
+        />
+      )}
     </div>
   );
 }
